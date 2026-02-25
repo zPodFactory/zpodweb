@@ -38,7 +38,6 @@ export function LoginPage() {
   const nameRef = useRef<HTMLInputElement>(null)
   const urlRef = useRef<HTMLInputElement>(null)
   const tokenRef = useRef<HTMLInputElement>(null)
-  const saveRef = useRef<HTMLInputElement>(null)
 
   async function handleConnect(target: TargetProfile) {
     try {
@@ -66,7 +65,6 @@ export function LoginPage() {
     const formName = nameRef.current?.value || "Unnamed"
     const formUrl = urlRef.current?.value || ""
     const formToken = tokenRef.current?.value || ""
-    const formSave = saveRef.current?.checked ?? true
 
     if (!formUrl || !formToken) {
       toast.error("Please fill in the API URL and Token fields.")
@@ -85,9 +83,7 @@ export function LoginPage() {
     try {
       setLoading(true)
       const user = await validateTarget(target.url, target.token)
-      if (formSave) {
-        addTarget(target)
-      }
+      addTarget(target)
       setActiveTarget(target.id)
       setUser(user)
       navigate(returnTo)
@@ -259,18 +255,6 @@ export function LoginPage() {
                       import.meta.env.ZPODWEB_DEFAULT_ZPODFACTORY_API_TOKEN || ""
                     }
                   />
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={saveRef}
-                    type="checkbox"
-                    id="save"
-                    defaultChecked
-                    className="h-4 w-4"
-                  />
-                  <Label htmlFor="save" className="text-sm font-normal">
-                    Save this target
-                  </Label>
                 </div>
                 <Button
                   className="w-full"
