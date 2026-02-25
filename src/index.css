@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 240 5.9% 10%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 240 5.9% 10%;
+    --radius: 0px;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Catppuccin Mocha */
+    --background: 240 21% 15%;        /* Base #1e1e2e */
+    --foreground: 226 64% 88%;        /* Text #cdd6f4 */
+    --card: 237 16% 23%;              /* Surface 0 #313244 */
+    --card-foreground: 226 64% 88%;   /* Text #cdd6f4 */
+    --popover: 237 16% 23%;           /* Surface 0 #313244 */
+    --popover-foreground: 226 64% 88%;/* Text #cdd6f4 */
+    --primary: 267 84% 81%;           /* Mauve #cba6f7 */
+    --primary-foreground: 240 23% 9%; /* Crust #11111b */
+    --secondary: 234 13% 31%;         /* Surface 1 #45475a */
+    --secondary-foreground: 227 35% 80%;/* Subtext 1 #bac2de */
+    --muted: 237 16% 23%;             /* Surface 0 #313244 */
+    --muted-foreground: 230 13% 55%;  /* Overlay 1 #7f849c */
+    --accent: 234 13% 31%;            /* Surface 1 #45475a */
+    --accent-foreground: 226 64% 88%; /* Text #cdd6f4 */
+    --destructive: 343 81% 75%;       /* Red #f38ba8 */
+    --destructive-foreground: 240 23% 9%;/* Crust #11111b */
+    --border: 234 13% 31%;            /* Surface 1 #45475a */
+    --input: 234 13% 31%;             /* Surface 1 #45475a */
+    --ring: 267 84% 81%;              /* Mauve #cba6f7 */
+    --chart-1: 267 84% 81%;           /* Mauve */
+    --chart-2: 170 57% 73%;           /* Teal */
+    --chart-3: 41 86% 83%;            /* Yellow */
+    --chart-4: 217 92% 76%;           /* Blue */
+    --chart-5: 343 81% 75%;           /* Red */
+    --sidebar-background: 240 21% 12%;/* Mantle #181825 */
+    --sidebar-foreground: 227 35% 80%;/* Subtext 1 #bac2de */
+    --sidebar-primary: 267 84% 81%;   /* Mauve #cba6f7 */
+    --sidebar-primary-foreground: 240 23% 9%;/* Crust #11111b */
+    --sidebar-accent: 237 16% 23%;    /* Surface 0 #313244 */
+    --sidebar-accent-foreground: 226 64% 88%;/* Text #cdd6f4 */
+    --sidebar-border: 237 16% 23%;    /* Surface 0 #313244 */
+    --sidebar-ring: 267 84% 81%;      /* Mauve #cba6f7 */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    font-size: 17.5px;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}

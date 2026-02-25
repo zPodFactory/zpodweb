@@ -1,0 +1,9 @@
+services:
+  zpodweb:
+    container_name: zpodweb-ui
+    build: .
+    ports:
+      - "${ZPODWEB_DEFAULT_UI_PORT:-8500}:80"
+    env_file:
+      - .env
+    restart: unless-stopped
