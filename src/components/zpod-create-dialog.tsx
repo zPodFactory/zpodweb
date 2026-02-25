@@ -143,7 +143,10 @@ export function ZpodCreateDialog({
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [endpoints, setEndpoints] = useState<EndpointFull[]>([])
   const [defaultDomain, setDefaultDomain] = useState("")
+  const [usernamePrefix, setUsernamePrefix] = useState("")
   const [dataLoading, setDataLoading] = useState(false)
+
+  const username = useAuthStore((s) => s.user?.username ?? "")
 
   const activeEndpoints = endpoints.filter((ep) => ep.status === "ACTIVE")
 
@@ -164,6 +167,10 @@ export function ZpodCreateDialog({
           (setting) => setting.name === "zpodfactory_default_domain"
         )
         setDefaultDomain(domainSetting?.value ?? "")
+        const prefixSetting = s.find(
+          (setting) => setting.name === "ff_restrict_zpod_with_username_prefix"
+        )
+        setUsernamePrefix(prefixSetting?.value === "true" && !isSuperadmin ? username : "")
         // Pre-select default profile if setting exists and profile matches
         const defaultProfileSetting = s.find(
           (setting) => setting.name === "ff_zpod_default_profile"
@@ -184,8 +191,11 @@ export function ZpodCreateDialog({
       .finally(() => setDataLoading(false))
   }, [open, fetchProfiles, fetchEndpoints, fetchSettings])
 
+  const fullName = usernamePrefix ? `${usernamePrefix}-${name}` : name
+  const effectiveDomain = domain || defaultDomain
+  const domainSuffix = !isSuperadmin && defaultDomain ? `.${defaultDomain}` : ""
   const domainPreview =
-    name && defaultDomain ? `${name}.${domain || defaultDomain}` : ""
+    name && effectiveDomain ? `${fullName}.${domain || effectiveDomain}` : ""
 
   const canSubmit =
     name.trim() !== "" && profileName !== "" && endpointId !== "" && !creating
@@ -194,8 +204,11 @@ export function ZpodCreateDialog({
     if (!canSubmit) return
     setCreating(true)
     try {
+      const zpodName = usernamePrefix
+        ? `${usernamePrefix}-${name.trim().toLowerCase()}`
+        : name.trim().toLowerCase()
       await createZpod({
-        name: name.trim().toLowerCase(),
+        name: zpodName,
         endpoint_id: Number(endpointId),
         profile: profileName,
         ...(domain ? { domain } : {}),
@@ -240,16 +253,44 @@ export function ZpodCreateDialog({
           </div>
         ) : (
           <div className="space-y-4 py-2">
-            {/* Name */}
+            {/* Name with optional prefix/suffix */}
             <div className="space-y-2">
               <Label htmlFor="zpod-name">Name</Label>
-              <Input
-                id="zpod-name"
-                value={name}
-                onChange={(e) => setName(e.target.value.toLowerCase())}
-                placeholder="my-zpod"
-                autoFocus
-              />
+              {usernamePrefix || domainSuffix ? (
+                <div className="flex h-10 w-full rounded-md border border-input ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                  {usernamePrefix && (
+                    <span className="inline-flex items-center border-r border-input bg-primary/10 px-3 text-sm text-primary/70 rounded-l-md">
+                      {usernamePrefix}-
+                    </span>
+                  )}
+                  <input
+                    id="zpod-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value.toLowerCase())}
+                    placeholder="my-zpod"
+                    autoFocus
+                    className="flex-1 min-w-0 bg-transparent px-3 py-2 text-base md:text-sm placeholder:text-muted-foreground focus:outline-none"
+                  />
+                  {domainSuffix && (
+                    <span className="inline-flex items-center border-l border-input bg-primary/10 px-3 text-sm text-primary/70 rounded-r-md">
+                      {domainSuffix}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <Input
+                  id="zpod-name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value.toLowerCase())}
+                  placeholder="my-zpod"
+                  autoFocus
+                />
+              )}
+              {domainPreview && (
+                <p className="text-xs text-muted-foreground">
+                  FQDN: {domainPreview}
+                </p>
+              )}
             </div>
 
             {/* Domain — only visible to superadmins */}
@@ -262,11 +303,6 @@ export function ZpodCreateDialog({
                   onChange={(e) => setDomain(e.target.value)}
                   placeholder={defaultDomain || "example.com"}
                 />
-                {domainPreview && (
-                  <p className="text-xs text-muted-foreground">
-                    {domainPreview}
-                  </p>
-                )}
               </div>
             )}
 
