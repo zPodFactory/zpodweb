@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
+import { useSearchParams } from "react-router"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
@@ -48,6 +49,11 @@ export function ProfilesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Profile | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Deep-link: auto-expand profile from ?profile=Name query param
+  const [searchParams, setSearchParams] = useSearchParams()
+  const highlightName = searchParams.get("profile")
+  const highlightApplied = useRef(false)
+
   const loadProfiles = useCallback(() => {
     fetchProfiles().then(setProfiles).catch(() => {})
   }, [fetchProfiles])
@@ -63,6 +69,25 @@ export function ProfilesPage() {
   }, [fetchProfiles, fetchComponents])
 
   usePolling(loadProfiles)
+
+  // Auto-expand the profile specified in the URL query param
+  useEffect(() => {
+    if (!highlightName || highlightApplied.current || profiles.length === 0) return
+    const match = profiles.find((p) => p.name === highlightName)
+    if (match) {
+      setExpanded((prev) => new Set(prev).add(match.id))
+      highlightApplied.current = true
+      // Clean up the query param
+      setSearchParams((prev) => {
+        prev.delete("profile")
+        return prev
+      }, { replace: true })
+      // Scroll to the profile card after render
+      setTimeout(() => {
+        document.getElementById(`profile-${match.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
+      }, 100)
+    }
+  }, [highlightName, profiles, setSearchParams])
 
   const handleCreate = () => {
     setEditingProfile(null)
@@ -209,7 +234,7 @@ export function ProfilesPage() {
             const items = flattenProfileItems(profile.profile)
             const isExpanded = expanded.has(profile.id)
             return (
-              <Card key={profile.id}>
+              <Card key={profile.id} id={`profile-${profile.id}`}>
                 <CardHeader
                   className="cursor-pointer py-3"
                   onClick={() =>

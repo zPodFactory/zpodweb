@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Link } from "react-router"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
@@ -31,9 +32,9 @@ import { SortableHead } from "@/components/sortable-head"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ComponentUploadDialog } from "@/components/component-upload-dialog"
 import { toast } from "sonner"
-import { Search, Upload, AlertTriangle, Loader2 } from "lucide-react"
+import { Search, Upload, AlertTriangle, Loader2, Layers } from "lucide-react"
 import { useAuthStore } from "@/stores/auth-store"
-import type { ComponentFull } from "@/types"
+import type { ComponentFull, Profile, ProfileItem } from "@/types"
 import { StatusBadge } from "@/components/status-badge"
 import { statusClasses } from "@/lib/status-colors"
 import { Switch } from "@/components/ui/switch"
@@ -69,10 +70,11 @@ function DownloadStatusBadge({ downloadStatus }: { downloadStatus: string }) {
 }
 
 export function ComponentsPage() {
-  const { fetchComponents, enableComponent, disableComponent } = useApi()
+  const { fetchComponents, fetchProfiles, enableComponent, disableComponent } = useApi()
   const { user } = useAuthStore()
   const isSuperadmin = user?.superadmin ?? false
   const [components, setComponents] = useState<ComponentFull[]>([])
+  const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "IN_PROGRESS">("ACTIVE")
@@ -87,11 +89,34 @@ export function ComponentsPage() {
       .finally(() => setLoading(false))
   }, [fetchComponents])
 
+  const loadProfiles = useCallback(() => {
+    fetchProfiles()
+      .then(setProfiles)
+      .catch(() => {})
+  }, [fetchProfiles])
+
   useEffect(() => {
     loadComponents()
-  }, [loadComponents])
+    loadProfiles()
+  }, [loadComponents, loadProfiles])
 
   usePolling(loadComponents)
+  usePolling(loadProfiles, 30)
+
+  // Build a map of component_uid → list of profile names that use it
+  const profilesByComponent = useMemo(() => {
+    const map = new Map<string, string[]>()
+    for (const profile of profiles) {
+      const items = profile.profile.flat() as ProfileItem[]
+      const uids = new Set(items.map((item) => item.component_uid))
+      for (const uid of uids) {
+        const list = map.get(uid)
+        if (list) list.push(profile.name)
+        else map.set(uid, [profile.name])
+      }
+    }
+    return map
+  }, [profiles])
 
   const filtered = components.filter((c) => {
     const matchesText =
@@ -197,6 +222,7 @@ export function ComponentsPage() {
                   <SortableHead label="Library" sortKey="library_name" sort={sort} onToggle={toggleSort} className="hidden md:table-cell" />
                   <SortableHead label="Description" sortKey="component_description" sort={sort} onToggle={toggleSort} className="hidden lg:table-cell" />
                   <SortableHead label="Status" sortKey="status" sort={sort} onToggle={toggleSort} />
+                  {isSuperadmin && <TableHead className="w-[80px]">Profiles</TableHead>}
                   {isSuperadmin && <TableHead className="w-[80px]">Actions</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -225,6 +251,55 @@ export function ComponentsPage() {
                         <StatusBadge status={comp.status} />
                       )}
                     </TableCell>
+                    {isSuperadmin && <TableCell>
+                      {(() => {
+                        const names = profilesByComponent.get(comp.component_uid) ?? []
+                        if (names.length === 0) {
+                          return (
+                            <Badge variant="outline" className="text-muted-foreground">
+                              0
+                            </Badge>
+                          )
+                        }
+                        return (
+                          <HoverCard openDelay={200} closeDelay={100}>
+                            <HoverCardTrigger asChild>
+                              <Badge variant="outline" className="cursor-default border-[#94e2d5]/40 bg-[#94e2d5]/10 text-[#94e2d5]">
+                                {names.length}
+                              </Badge>
+                            </HoverCardTrigger>
+                            <HoverCardContent className="w-auto min-w-[200px] px-4 py-3 bg-[#181825] border-[#313244]" side="left">
+                              <p className="text-sm font-bold text-zinc-100">
+                                Used in {names.length} profile{names.length > 1 ? "s" : ""}
+                              </p>
+                              <p className="text-xs font-medium text-zinc-400 mt-4 mb-1">Profiles:</p>
+                              <div className="ml-2">
+                                {names.map((name, i) => (
+                                  <div
+                                    key={name}
+                                    className="flex items-center min-h-[28px] text-sm"
+                                  >
+                                    <div className="flex flex-col items-center w-0.5 shrink-0 self-stretch">
+                                      <div className={`flex-1 w-full${i === 0 ? "" : " bg-zinc-600/60"}`} />
+                                      <span className="h-[5px] w-[5px] rounded-full bg-zinc-400 shrink-0" />
+                                      <div className={`flex-1 w-full${i === names.length - 1 ? "" : " bg-zinc-600/60"}`} />
+                                    </div>
+                                    <span className="w-3.5 border-t border-zinc-500/70 shrink-0" />
+                                    <Link
+                                      to={`/profiles?profile=${encodeURIComponent(name)}`}
+                                      className="flex items-center gap-1.5 ml-1.5 text-zinc-300 hover:text-[#94e2d5] transition-colors"
+                                    >
+                                      <Layers className="h-3 w-3 shrink-0" />
+                                      <span className="truncate">{name}</span>
+                                    </Link>
+                                  </div>
+                                ))}
+                              </div>
+                            </HoverCardContent>
+                          </HoverCard>
+                        )
+                      })()}
+                    </TableCell>}
                     {isSuperadmin && (
                       <TableCell>
                         <HoverCard openDelay={300} closeDelay={100}>
