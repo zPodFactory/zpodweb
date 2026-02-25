@@ -28,6 +28,7 @@ import { toast } from "sonner"
 import { Loader2, Cpu, Network } from "lucide-react"
 import { ProfileTrunk } from "@/components/profile-trunk"
 import { flattenProfileItems } from "@/lib/profile-utils"
+import { useAuthStore } from "@/stores/auth-store"
 import type {
   Profile,
   EndpointFull,
@@ -131,6 +132,7 @@ export function ZpodCreateDialog({
   onCreateComplete,
 }: ZpodCreateDialogProps) {
   const { fetchProfiles, fetchEndpoints, fetchSettings, createZpod } = useApi()
+  const isSuperadmin = useAuthStore((s) => s.user?.superadmin ?? false)
 
   const [name, setName] = useState("")
   const [domain, setDomain] = useState("")
@@ -250,21 +252,23 @@ export function ZpodCreateDialog({
               />
             </div>
 
-            {/* Domain */}
-            <div className="space-y-2">
-              <Label htmlFor="zpod-domain">Domain</Label>
-              <Input
-                id="zpod-domain"
-                value={domain}
-                onChange={(e) => setDomain(e.target.value)}
-                placeholder={defaultDomain || "example.com"}
-              />
-              {domainPreview && (
-                <p className="text-xs text-muted-foreground">
-                  {domainPreview}
-                </p>
-              )}
-            </div>
+            {/* Domain — only visible to superadmins */}
+            {isSuperadmin && (
+              <div className="space-y-2">
+                <Label htmlFor="zpod-domain">Domain</Label>
+                <Input
+                  id="zpod-domain"
+                  value={domain}
+                  onChange={(e) => setDomain(e.target.value)}
+                  placeholder={defaultDomain || "example.com"}
+                />
+                {domainPreview && (
+                  <p className="text-xs text-muted-foreground">
+                    {domainPreview}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Profile */}
             <div className="space-y-2">
