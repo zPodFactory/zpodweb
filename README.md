@@ -2,6 +2,11 @@
 
 > This project was mainly vibecoded using [Claude](https://claude.ai), but driven with very specific UX/UI/API, architecture, and design instructions to fit a clear product vision.
 
+<p align="center">
+  <a href="img/zpodweb-dashboard.png" target="_blank"><img src="img/zpodweb-dashboard.png" alt="zpodweb Dashboard" width="49%"></a>
+  <a href="img/zpodweb-profiles.png" target="_blank"><img src="img/zpodweb-profiles.png" alt="zpodweb Profiles" width="49%"></a>
+</p>
+
 A modern web UI for [zPodFactory](https://zpodfactory.github.io) — the automated nested lab deployment platform for VMware environments.
 
 zpodweb connects to the zPodFactory API (`zpodapi`) and provides a visual interface for managing zPods, endpoints, components, libraries, profiles, and factory settings. All API calls are proxied through Nginx (production) or a Vite dev server plugin (development) to avoid CORS issues — the browser never talks directly to the API.
