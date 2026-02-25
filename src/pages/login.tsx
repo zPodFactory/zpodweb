@@ -111,6 +111,11 @@ export function LoginPage() {
     setShowAddDialog(false)
   }
 
+  // Reset document title on login page
+  useEffect(() => {
+    document.title = "zPodFactory"
+  }, [])
+
   // Auto-connect when exactly one saved target exists,
   // but skip if the user just explicitly disconnected this session.
   useEffect(() => {

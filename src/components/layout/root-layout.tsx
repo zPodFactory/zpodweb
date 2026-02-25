@@ -1,9 +1,18 @@
+import { useEffect } from "react"
 import { Outlet } from "react-router"
 import { Sidebar } from "./sidebar"
 import { Header } from "./header"
 import { MobileNav } from "./mobile-nav"
+import { useTargetStore } from "@/stores/target-store"
 
 export function RootLayout() {
+  const { targets, activeTargetId } = useTargetStore()
+  const activeTarget = targets.find((t) => t.id === activeTargetId)
+
+  useEffect(() => {
+    document.title = activeTarget ? activeTarget.name : "zPodFactory"
+  }, [activeTarget])
+
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar className="hidden lg:flex" />
