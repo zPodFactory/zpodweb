@@ -10,7 +10,7 @@ interface BuildProgressHoverContentProps {
   creationDate: string
   pct: number
   hoverRows: HoverRow[]
-  deployedByUid: Map<string, ZpodComponentView>
+  deployedByUid: Map<string, ZpodComponentView[]>
 }
 
 export function BuildProgressHoverContent({
@@ -38,7 +38,11 @@ export function BuildProgressHoverContent({
       </div>
       <div className="mt-2.5">
         {hoverRows.map((row) => {
-          const deployed = deployedByUid.get(row.pi.component_uid)
+          const candidates = deployedByUid.get(row.pi.component_uid) ?? []
+          // Match by hostname when available, otherwise take the first unmatched
+          const deployed = (row.pi.hostname
+            ? candidates.find((c) => c.hostname === row.pi.hostname)
+            : candidates[0]) ?? null
           const name = deployed
             ? (deployed.hostname ?? deployed.component.component_name)
             : (row.pi.hostname ?? extractComponentType(row.pi.component_uid))

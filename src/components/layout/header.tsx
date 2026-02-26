@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { IconTooltip } from "@/components/icon-tooltip"
+import { UploadIndicator } from "@/components/layout/upload-indicator"
 import { LogOut, ChevronDown, Settings2, Server } from "lucide-react"
 import { toast } from "sonner"
 import type { Zpod } from "@/types"
@@ -129,6 +130,8 @@ export function Header() {
               <span>{activeTarget?.name ?? "No target"}</span>
             </div>
           </IconTooltip>
+
+          {user?.superadmin && <UploadIndicator />}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

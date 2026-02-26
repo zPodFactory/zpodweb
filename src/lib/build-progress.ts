@@ -1,4 +1,4 @@
-import type { ProfileItem } from "@/types"
+import type { ProfileItem, ZpodComponentView } from "@/types"
 
 export interface HoverRow {
   pi: ProfileItem
@@ -37,4 +37,18 @@ export function buildHoverRows(
     })
   })
   return rows
+}
+
+/** Group deployed components by component_uid, preserving all instances */
+export function groupDeployedByUid(
+  components: ZpodComponentView[]
+): Map<string, ZpodComponentView[]> {
+  const map = new Map<string, ZpodComponentView[]>()
+  for (const c of components) {
+    const uid = c.component.component_uid
+    const list = map.get(uid)
+    if (list) list.push(c)
+    else map.set(uid, [c])
+  }
+  return map
 }

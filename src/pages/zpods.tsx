@@ -47,7 +47,7 @@ import {
 import { Progress } from "@/components/ui/progress"
 import { ZpodCreateDialog } from "@/components/zpod-create-dialog"
 import { BuildProgressHoverContent } from "@/components/build-progress-hover"
-import { buildHoverRows } from "@/lib/build-progress"
+import { buildHoverRows, groupDeployedByUid } from "@/lib/build-progress"
 import { flattenProfileItems } from "@/lib/profile-utils"
 import { cn, copyToClipboard } from "@/lib/utils"
 
@@ -515,7 +515,7 @@ export function ZpodsPage() {
                     : 0
                   const deployedComponents = zpod.components ?? []
                   const profileSteps = profileStepsMap.get(zpod.profile) ?? []
-                  const deployedByUid = new Map(deployedComponents.map((c) => [c.component.component_uid, c]))
+                  const deployedByUid = groupDeployedByUid(deployedComponents)
                   const hoverRows = buildHoverRows(profileSteps)
                   return (
                     <React.Fragment key={zpod.id}>

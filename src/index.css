@@ -97,3 +97,13 @@
     display: none;
   }
 }
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  10%  { transform: translateX(0); }
+  90%  { transform: translateX(var(--marquee-distance)); }
+  100% { transform: translateX(var(--marquee-distance)); }
+}
+.animate-marquee {
+  animation: marquee var(--marquee-duration, 8s) linear infinite alternate;
+}

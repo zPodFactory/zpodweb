@@ -54,6 +54,7 @@ import { ElapsedTime } from "@/components/elapsed-time"
 import { flattenProfileItems } from "@/lib/profile-utils"
 import { copyToClipboard, formatDateTime } from "@/lib/utils"
 import { extractComponentType, extractComponentVersion, getComponentHex, componentStyles } from "@/lib/component-colors"
+import { groupDeployedByUid } from "@/lib/build-progress"
 
 // --- CIDR helpers ---
 
@@ -574,7 +575,7 @@ export function ZpodDetailPage() {
 
   const buildHoverRows = useMemo(() => {
     if (!showBuildProgress || !zpod) return null
-    const deployedByUid = new Map((zpod.components ?? []).map((c) => [c.component.component_uid, c]))
+    const deployedByUid = groupDeployedByUid(zpod.components ?? [])
     type HoverRow = {
       pi: ProfileItem; key: string
       firstInTrunk: boolean; lastInTrunk: boolean
@@ -664,7 +665,10 @@ export function ZpodDetailPage() {
         {buildHoverRows && "rows" in buildHoverRows && (
           <div className="mt-2.5">
             {buildHoverRows.rows.map((row) => {
-              const deployed = buildHoverRows.deployedByUid.get(row.pi.component_uid)
+              const candidates = buildHoverRows.deployedByUid.get(row.pi.component_uid) ?? []
+              const deployed = (row.pi.hostname
+                ? candidates.find((c) => c.hostname === row.pi.hostname)
+                : candidates[0]) ?? null
               const name = deployed
                 ? (deployed.hostname ?? deployed.component.component_name)
                 : (row.pi.hostname ?? extractComponentType(row.pi.component_uid))

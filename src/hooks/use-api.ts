@@ -161,10 +161,10 @@ export function useApi() {
     async (filename: string): Promise<number> => {
       const client = getClient()
       try {
-        const { data } = await client.get<number>(
+        const { data } = await client.get<{ current_size: number }>(
           `/components/upload/${encodeURIComponent(filename)}`
         )
-        return data
+        return data?.current_size ?? 0
       } catch {
         return 0
       }
