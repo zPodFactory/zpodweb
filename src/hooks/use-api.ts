@@ -18,6 +18,8 @@ import type {
   SettingCreate,
   SettingUpdate,
   EndpointFull,
+  EndpointCreate,
+  EndpointPasswordUpdate,
 } from "@/types"
 
 function useApiClient() {
@@ -130,6 +132,32 @@ export function useApi() {
     const { data } = await client.get<EndpointFull[]>("/endpoints")
     return data
   }, [getClient])
+
+  const createEndpoint = useCallback(
+    async (payload: EndpointCreate): Promise<EndpointFull> => {
+      const client = getClient()
+      const { data } = await client.post<EndpointFull>("/endpoints", payload)
+      return data
+    },
+    [getClient]
+  )
+
+  const updateEndpointPasswords = useCallback(
+    async (id: number, payload: EndpointPasswordUpdate): Promise<EndpointFull> => {
+      const client = getClient()
+      const { data } = await client.patch<EndpointFull>(`/endpoints/${id}`, payload)
+      return data
+    },
+    [getClient]
+  )
+
+  const deleteEndpoint = useCallback(
+    async (id: number): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/endpoints/${id}`)
+    },
+    [getClient]
+  )
 
   const fetchZpod = useCallback(
     async (id: number): Promise<Zpod> => {
@@ -338,6 +366,9 @@ export function useApi() {
     updateSetting,
     deleteSetting,
     fetchEndpoints,
+    createEndpoint,
+    updateEndpointPasswords,
+    deleteEndpoint,
     getUploadedFileSize,
     uploadComponentChunk,
   }

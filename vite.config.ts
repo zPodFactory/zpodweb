@@ -54,6 +54,24 @@ function apiProxyPlugin() {
   return {
     name: "api-proxy",
     configureServer(server: ViteDevServer) {
+      // Test routes for endpoint connectivity validation (same Node.js process)
+      server.middlewares.use("/test/vsphere/inventory", async (req: IncomingMessage, res: ServerResponse) => {
+        const { handleVsphereInventory } = await import("./server/test-handlers.js")
+        handleVsphereInventory(req, res)
+      })
+      server.middlewares.use("/test/nsx/inventory", async (req: IncomingMessage, res: ServerResponse) => {
+        const { handleNsxInventory } = await import("./server/test-handlers.js")
+        handleNsxInventory(req, res)
+      })
+      server.middlewares.use("/test/vsphere", async (req: IncomingMessage, res: ServerResponse) => {
+        const { handleVsphereTest } = await import("./server/test-handlers.js")
+        handleVsphereTest(req, res)
+      })
+      server.middlewares.use("/test/nsx", async (req: IncomingMessage, res: ServerResponse) => {
+        const { handleNsxTest } = await import("./server/test-handlers.js")
+        handleNsxTest(req, res)
+      })
+
       // Dynamic reverse proxy replicating Nginx /api/ behavior for local dev.
       // Routes each request to the zpodapi URL from the X-Target-Url header.
       server.middlewares.use("/api", (req: IncomingMessage, res: ServerResponse) => {
@@ -158,6 +176,11 @@ function apiProxyPlugin() {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "ZPODWEB_")
+  // Load DEBUG_API_* vars into process.env for server-side SOAP logging
+  const debugEnv = loadEnv(mode, process.cwd(), "DEBUG_API_")
+  for (const [key, value] of Object.entries(debugEnv)) {
+    process.env[key] = value
+  }
   return {
     plugins: [react(), apiProxyPlugin()],
     envPrefix: "ZPODWEB_",

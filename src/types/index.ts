@@ -66,6 +66,46 @@ export interface EndpointFull extends Endpoint {
   }
 }
 
+export interface EndpointComputeCreate {
+  driver: string
+  hostname: string
+  username: string
+  password: string
+  datacenter: string
+  resource_pool: string
+  storage_datastore: string
+  storage_policy: string
+  contentlibrary: string
+  vmfolder: string
+}
+
+export interface EndpointNetworkCreate {
+  driver: string
+  hostname: string
+  username: string
+  password: string
+  networks: string
+  transportzone: string
+  edgecluster: string
+  t0: string
+}
+
+export interface EndpointCreate {
+  name: string
+  description: string
+  endpoints: {
+    compute: EndpointComputeCreate
+    network: EndpointNetworkCreate
+  }
+}
+
+export interface EndpointPasswordUpdate {
+  endpoints: {
+    compute: { password: string }
+    network: { password: string }
+  }
+}
+
 export interface ComponentFull {
   id: number
   component_uid: string
