@@ -408,12 +408,8 @@ export async function checkResourcePool(
   session: VsphereSession,
   name: string
 ): Promise<boolean> {
-  const results = await retrieveProperties(session, {
-    type: "ComputeResource",
-    pathSet: ["name"],
-    traversals: [TRAVERSE_FOLDER, TRAVERSE_DC_HOST],
-  })
-  return results.some((r) => r.props["name"] === name)
+  const pools = await listResourcePools(session)
+  return pools.some((r) => r.name === name)
 }
 
 export async function listDatastores(
@@ -565,10 +561,13 @@ export async function checkVmFolder(
   session: VsphereSession,
   name: string
 ): Promise<boolean> {
-  const results = await retrieveProperties(session, {
-    type: "Folder",
-    pathSet: ["name"],
-    traversals: [TRAVERSE_FOLDER, TRAVERSE_DC_VM],
-  })
-  return results.some((r) => r.props["name"] === name)
+  const folders = await listVmFolders(session)
+  function findInTree(items: VmFolderTreeItem[]): boolean {
+    for (const item of items) {
+      if (item.name === name) return true
+      if (findInTree(item.children)) return true
+    }
+    return false
+  }
+  return findInTree(folders)
 }

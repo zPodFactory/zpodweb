@@ -106,6 +106,46 @@ export interface EndpointPasswordUpdate {
   }
 }
 
+// --- Inventory types (used by endpoint create/edit dialogs and test server) ---
+
+export interface DatastoreItem {
+  moRef: string
+  name: string
+  capacityGB: number
+  usedGB: number
+  type: string
+}
+
+export interface ResourcePoolItem {
+  name: string
+  type: "cluster" | "resource_pool"
+}
+
+export interface VmFolderTreeItem {
+  name: string
+  children: VmFolderTreeItem[]
+}
+
+export interface VsphereInventory {
+  datacenters: string[]
+  resourcePools: ResourcePoolItem[]
+  datastores: DatastoreItem[]
+  vmFolders: VmFolderTreeItem[]
+}
+
+export interface NsxInventory {
+  transportZones: string[]
+  edgeClusters: string[]
+  t0Gateways: string[]
+}
+
+export interface InventoryResult<T> {
+  connected: boolean
+  version?: string
+  error?: string
+  inventory?: T
+}
+
 export interface ComponentFull {
   id: number
   component_uid: string

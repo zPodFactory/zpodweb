@@ -126,52 +126,22 @@ export async function checkEdgeCluster(
   session: NsxSession,
   name: string
 ): Promise<boolean> {
-  const res = await restGet(
-    session.host,
-    "/api/v1/edge-clusters",
-    session.username,
-    session.password
-  )
-  if (res.status !== 200) return false
-  const data = JSON.parse(res.body)
-  const results = data.results || []
-  return results.some(
-    (r: { display_name: string }) => r.display_name === name
-  )
+  const names = await listEdgeClusters(session)
+  return names.includes(name)
 }
 
 export async function checkT0(
   session: NsxSession,
   name: string
 ): Promise<boolean> {
-  const res = await restGet(
-    session.host,
-    "/policy/api/v1/infra/tier-0s",
-    session.username,
-    session.password
-  )
-  if (res.status !== 200) return false
-  const data = JSON.parse(res.body)
-  const results = data.results || []
-  return results.some(
-    (r: { display_name: string }) => r.display_name === name
-  )
+  const names = await listT0Gateways(session)
+  return names.includes(name)
 }
 
 export async function checkTransportZone(
   session: NsxSession,
   name: string
 ): Promise<boolean> {
-  const res = await restGet(
-    session.host,
-    "/api/v1/transport-zones",
-    session.username,
-    session.password
-  )
-  if (res.status !== 200) return false
-  const data = JSON.parse(res.body)
-  const results = data.results || []
-  return results.some(
-    (r: { display_name: string }) => r.display_name === name
-  )
+  const names = await listTransportZones(session)
+  return names.includes(name)
 }

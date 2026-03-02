@@ -1,6 +1,6 @@
 import { createServer, request as httpRequest } from "http"
 import { request as httpsRequest } from "https"
-import { readFileSync, existsSync, statSync } from "fs"
+import { readFileSync, createReadStream, statSync } from "fs"
 import { join, extname } from "path"
 import { handleVsphereTest, handleNsxTest, handleVsphereInventory, handleNsxInventory } from "./test-handlers.js"
 
@@ -112,23 +112,28 @@ const server = createServer((req, res) => {
       return
     }
 
-    if (existsSync(filePath) && statSync(filePath).isFile()) {
-      const ext = extname(filePath)
-      const contentType = MIME_TYPES[ext] || "application/octet-stream"
+    try {
+      const stat = statSync(filePath)
+      if (stat.isFile()) {
+        const ext = extname(filePath)
+        const contentType = MIME_TYPES[ext] || "application/octet-stream"
 
-      // Cache immutable assets
-      if (url.startsWith("/assets/")) {
-        res.setHeader("Cache-Control", "public, max-age=31536000, immutable")
+        // Cache immutable assets
+        if (url.startsWith("/assets/")) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable")
+        }
+
+        // No cache for index.html
+        if (filePath.endsWith("index.html")) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate")
+        }
+
+        res.writeHead(200, { "Content-Type": contentType })
+        createReadStream(filePath).pipe(res)
+        return
       }
-
-      // No cache for index.html
-      if (filePath.endsWith("index.html")) {
-        res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate")
-      }
-
-      res.writeHead(200, { "Content-Type": contentType })
-      res.end(readFileSync(filePath))
-      return
+    } catch {
+      // File doesn't exist — fall through to SPA fallback
     }
 
     // SPA fallback

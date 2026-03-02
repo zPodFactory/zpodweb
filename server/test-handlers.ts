@@ -93,21 +93,26 @@ export async function handleVsphereTest(
 
   const checks: Record<string, { ok: boolean; capacityGB?: number; usedGB?: number }> = {}
 
+  const pending: Promise<void>[] = []
+
   if (datacenter) {
-    checks.datacenter = { ok: await vsphere.checkDatacenter(session, datacenter) }
+    pending.push(vsphere.checkDatacenter(session, datacenter).then((ok) => { checks.datacenter = { ok } }))
   }
   if (resource_pool) {
-    checks.resource_pool = { ok: await vsphere.checkResourcePool(session, resource_pool) }
+    pending.push(vsphere.checkResourcePool(session, resource_pool).then((ok) => { checks.resource_pool = { ok } }))
   }
   if (storage_datastore) {
-    const dsInfo = await vsphere.checkDatastore(session, storage_datastore)
-    checks.storage_datastore = dsInfo.exists
-      ? { ok: true, capacityGB: dsInfo.capacityGB, usedGB: dsInfo.usedGB }
-      : { ok: false }
+    pending.push(vsphere.checkDatastore(session, storage_datastore).then((dsInfo) => {
+      checks.storage_datastore = dsInfo.exists
+        ? { ok: true, capacityGB: dsInfo.capacityGB, usedGB: dsInfo.usedGB }
+        : { ok: false }
+    }))
   }
   if (vmfolder) {
-    checks.vmfolder = { ok: await vsphere.checkVmFolder(session, vmfolder) }
+    pending.push(vsphere.checkVmFolder(session, vmfolder).then((ok) => { checks.vmfolder = { ok } }))
   }
+
+  await Promise.all(pending)
 
   const result = {
     connected: true,
@@ -164,15 +169,19 @@ export async function handleNsxTest(
 
   const checks: Record<string, { ok: boolean; cidr?: string; zpodCapacity?: number }> = {}
 
+  const pending: Promise<void>[] = []
+
   if (edgecluster) {
-    checks.edgecluster = { ok: await nsx.checkEdgeCluster(session, edgecluster) }
+    pending.push(nsx.checkEdgeCluster(session, edgecluster).then((ok) => { checks.edgecluster = { ok } }))
   }
   if (t0) {
-    checks.t0 = { ok: await nsx.checkT0(session, t0) }
+    pending.push(nsx.checkT0(session, t0).then((ok) => { checks.t0 = { ok } }))
   }
   if (transportzone) {
-    checks.transportzone = { ok: await nsx.checkTransportZone(session, transportzone) }
+    pending.push(nsx.checkTransportZone(session, transportzone).then((ok) => { checks.transportzone = { ok } }))
   }
+  await Promise.all(pending)
+
   if (networks) {
     // Validate CIDR format and calculate zpod capacity
     const cidrMatch = networks.match(/\/(\d+)$/)

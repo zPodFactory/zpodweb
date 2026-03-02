@@ -41,31 +41,16 @@ import {
   XCircle,
 } from "lucide-react"
 import { Link } from "react-router"
-import type { EndpointFull, Zpod } from "@/types"
+import type {
+  EndpointFull,
+  Zpod,
+  VsphereInventory,
+  NsxInventory,
+  InventoryResult,
+  VmFolderTreeItem,
+} from "@/types"
 import { DetailRow } from "@/components/detail-row"
 import { EndpointCreateDialog } from "@/components/endpoint-create-dialog"
-
-// --- Inventory types (shared with create dialog) ---
-
-interface VsphereInventory {
-  datacenters: string[]
-  resourcePools: { name: string; type: string }[]
-  datastores: { moRef: string; name: string; capacityGB: number; usedGB: number; type: string }[]
-  vmFolders: { name: string; children: unknown[] }[]
-}
-
-interface NsxInventory {
-  transportZones: string[]
-  edgeClusters: string[]
-  t0Gateways: string[]
-}
-
-interface InventoryResult<T> {
-  connected: boolean
-  version?: string
-  error?: string
-  inventory?: T
-}
 
 // --- Helpers ---
 
@@ -269,10 +254,10 @@ function EndpointEditDialog({
     }
   }
 
-  function findInFolderTree(folders: { name: string; children: unknown[] }[], target: string): boolean {
+  function findInFolderTree(folders: VmFolderTreeItem[], target: string): boolean {
     for (const f of folders) {
       if (f.name === target) return true
-      if (f.children && findInFolderTree(f.children as { name: string; children: unknown[] }[], target)) return true
+      if (f.children && findInFolderTree(f.children, target)) return true
     }
     return false
   }

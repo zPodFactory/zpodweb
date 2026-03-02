@@ -40,50 +40,18 @@ import {
   ChevronRight,
   FolderIcon,
 } from "lucide-react"
-import type { EndpointCreate } from "@/types"
+import type {
+  EndpointCreate,
+  VsphereInventory,
+  NsxInventory,
+  InventoryResult,
+  VmFolderTreeItem,
+} from "@/types"
 
 interface EndpointCreateDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCreateComplete: () => void
-}
-
-interface DatastoreItem {
-  moRef: string
-  name: string
-  capacityGB: number
-  usedGB: number
-  type: string
-}
-
-interface ResourcePoolItem {
-  name: string
-  type: "cluster" | "resource_pool"
-}
-
-interface VmFolderTreeItem {
-  name: string
-  children: VmFolderTreeItem[]
-}
-
-interface VsphereInventory {
-  datacenters: string[]
-  resourcePools: ResourcePoolItem[]
-  datastores: DatastoreItem[]
-  vmFolders: VmFolderTreeItem[]
-}
-
-interface NsxInventory {
-  transportZones: string[]
-  edgeClusters: string[]
-  t0Gateways: string[]
-}
-
-interface InventoryResult<T> {
-  connected: boolean
-  version?: string
-  error?: string
-  inventory?: T
 }
 
 export function EndpointCreateDialog({
