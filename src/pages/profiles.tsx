@@ -133,8 +133,9 @@ export function ProfilesPage() {
       name: profile.name,
       profile: profile.profile.map((step) => {
         if (Array.isArray(step)) {
-          return step.map(({ component_uid, hostname, vcpu, vmem, vnics, vdisks }) => {
+          return step.map(({ component_uid, host_id, hostname, vcpu, vmem, vnics, vdisks }) => {
             const item: Record<string, unknown> = { component_uid }
+            if (host_id != null) item.host_id = host_id
             if (hostname != null) item.hostname = hostname
             if (vcpu != null) item.vcpu = vcpu
             if (vmem != null) item.vmem = vmem
@@ -143,8 +144,9 @@ export function ProfilesPage() {
             return item
           })
         }
-        const { component_uid, hostname, vcpu, vmem, vnics, vdisks } = step
+        const { component_uid, host_id, hostname, vcpu, vmem, vnics, vdisks } = step
         const item: Record<string, unknown> = { component_uid }
+        if (host_id != null) item.host_id = host_id
         if (hostname != null) item.hostname = hostname
         if (vcpu != null) item.vcpu = vcpu
         if (vmem != null) item.vmem = vmem
