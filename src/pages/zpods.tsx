@@ -37,7 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { IconTooltip } from "@/components/icon-tooltip"
 import { Plus, Info, Trash2, Settings2, KeyRound, Search } from "lucide-react"
-import type { Zpod, ZpodComponentView, ZpodNetwork, Profile, ProfileItem } from "@/types"
+import type { Zpod, ZpodComponentView, ZpodNetwork, Profile, ProfileItem, User } from "@/types"
 import { StatusBadge } from "@/components/status-badge"
 import { isInProgressStatus } from "@/lib/status-colors"
 import {
@@ -67,6 +67,26 @@ function getOwners(zpod: Zpod): string {
     ?.filter((p) => p.permission === "OWNER")
     .flatMap((p) => p.users.map((u) => u.username))
   return owners?.length ? owners.join(", ") : "—"
+}
+
+/**
+ * Is the given user a maintainer of this zpod? Mirrors the backend
+ * ZpodMaintainer rule: superadmin OR OWNER/ADMIN directly OR via a group.
+ *
+ * On the detail page we use GET /zpods/{id}/permissions/mine — for the list
+ * we derive from the already-returned permissions field to avoid N+1 calls.
+ */
+function isZpodMaintainer(zpod: Zpod, user: User | null): boolean {
+  if (!user) return false
+  if (user.superadmin) return true
+  return (zpod.permissions ?? []).some(
+    (p) =>
+      (p.permission === "OWNER" || p.permission === "ADMIN") &&
+      (p.users.some((u) => u.id === user.id) ||
+        (p.permission_groups ?? []).some((g) =>
+          g.users.some((u) => u.id === user.id)
+        ))
+  )
 }
 
 /** Compute the parent /24 CIDR from a list of /26 networks */
@@ -619,16 +639,18 @@ export function ZpodsPage() {
                                 <Info className="h-3.5 w-3.5" />
                               </Button>
                             </IconTooltip>
-                            <IconTooltip label="Destroy">
-                              <Button
-                                variant="outline"
-                                size="icon"
-                                className="h-7 w-7 text-destructive hover:text-destructive"
-                                onClick={() => setDestroyTarget(zpod)}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </IconTooltip>
+                            {isZpodMaintainer(zpod, user) && (
+                              <IconTooltip label="Destroy">
+                                <Button
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-7 w-7 text-destructive hover:text-destructive"
+                                  onClick={() => setDestroyTarget(zpod)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </IconTooltip>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

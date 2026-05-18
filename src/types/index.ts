@@ -247,10 +247,39 @@ export interface ZpodNetwork {
   cidr: string
 }
 
+export const ZpodPermission = {
+  OWNER: "OWNER",
+  ADMIN: "ADMIN",
+  USER: "USER",
+} as const
+
+export type ZpodPermission = (typeof ZpodPermission)[keyof typeof ZpodPermission]
+
+export interface PermissionGroup {
+  id: number
+  name: string
+  users: User[]
+}
+
 export interface ZpodPermissionView {
   id: number
-  permission: string
+  permission: ZpodPermission
   users: User[]
+  permission_groups: PermissionGroup[]
+}
+
+export interface ZpodPermissionMineView {
+  permission: ZpodPermission
+}
+
+export interface ZpodPermissionUserAddRemove {
+  user_id?: number | null
+  username?: string | null
+}
+
+export interface ZpodPermissionGroupAddRemove {
+  group_id?: number | null
+  groupname?: string | null
 }
 
 export interface ZpodCreate {

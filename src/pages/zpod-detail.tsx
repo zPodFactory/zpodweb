@@ -10,6 +10,13 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -46,9 +53,27 @@ import {
   Network,
   Plus,
   Server,
+  ShieldCheck,
   Trash2,
+  User as UserIcon,
+  Users as UsersIcon,
+  X,
 } from "lucide-react"
-import type { Zpod, EndpointFull, ZpodNetwork, ZpodComponentView, ComponentFull, ProfileItemCreate, ZpodDnsEntry, Profile, ProfileItem } from "@/types"
+import type {
+  Zpod,
+  EndpointFull,
+  ZpodNetwork,
+  ZpodComponentView,
+  ComponentFull,
+  ProfileItemCreate,
+  ZpodDnsEntry,
+  Profile,
+  ProfileItem,
+  ZpodPermission,
+  User,
+  PermissionGroup,
+} from "@/types"
+import { ZpodPermission as ZpodPermissionEnum } from "@/types"
 import { AddComponentDialog } from "@/components/add-component-dialog"
 import { ElapsedTime } from "@/components/elapsed-time"
 import { flattenProfileItems } from "@/lib/profile-utils"
@@ -396,9 +421,28 @@ function NetworkTopology({
 export function ZpodDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { fetchZpod, deleteZpod, fetchEndpoints, fetchComponents, fetchProfiles, addZpodComponent, deleteZpodComponent, fetchZpodDns, createZpodDns, deleteZpodDns } = useApi()
+  const {
+    fetchZpod,
+    deleteZpod,
+    fetchEndpoints,
+    fetchComponents,
+    fetchProfiles,
+    addZpodComponent,
+    deleteZpodComponent,
+    fetchZpodDns,
+    createZpodDns,
+    deleteZpodDns,
+    fetchUsers,
+    fetchPermissionGroups,
+    fetchZpodMyPermission,
+    addZpodPermissionUser,
+    removeZpodPermissionUser,
+    addZpodPermissionGroup,
+    removeZpodPermissionGroup,
+  } = useApi()
 
   const [zpod, setZpod] = useState<Zpod | null>(null)
+  const [myPermission, setMyPermission] = useState<ZpodPermission | null>(null)
   const [endpoints, setEndpoints] = useState<EndpointFull[]>([])
   const [allComponents, setAllComponents] = useState<ComponentFull[]>([])
   const [profiles, setProfiles] = useState<Profile[]>([])
@@ -418,6 +462,22 @@ export function ZpodDetailPage() {
   const [addingDns, setAddingDns] = useState(false)
   const [deleteDnsTarget, setDeleteDnsTarget] = useState<ZpodDnsEntry | null>(null)
   const [deletingDns, setDeletingDns] = useState(false)
+
+  // Permissions state
+  const [allUsers, setAllUsers] = useState<User[]>([])
+  const [allGroups, setAllGroups] = useState<PermissionGroup[]>([])
+  const [permAddTarget, setPermAddTarget] = useState<{
+    permission: ZpodPermission
+    kind: "user" | "group"
+  } | null>(null)
+  const [permAddSelection, setPermAddSelection] = useState<string>("")
+  const [permMutating, setPermMutating] = useState(false)
+  const [permRemoveTarget, setPermRemoveTarget] = useState<{
+    permission: ZpodPermission
+    kind: "user" | "group"
+    id: number
+    name: string
+  } | null>(null)
 
   const zpodId = Number(id)
 
@@ -440,12 +500,21 @@ export function ZpodDetailPage() {
   }, [fetchZpod, fetchZpodDns, zpodId])
 
   useEffect(() => {
-    Promise.all([fetchZpod(zpodId), fetchEndpoints(), fetchComponents(), fetchProfiles()])
-      .then(async ([z, eps, comps, profs]) => {
+    // Fetch myPermission alongside the rest so action buttons don't briefly
+    // flash as read-only on first paint.
+    Promise.all([
+      fetchZpod(zpodId),
+      fetchEndpoints(),
+      fetchComponents(),
+      fetchProfiles(),
+      fetchZpodMyPermission(zpodId).catch(() => null),
+    ])
+      .then(async ([z, eps, comps, profs, mine]) => {
         setZpod(z)
         setEndpoints(eps)
         setAllComponents(comps)
         setProfiles(profs)
+        setMyPermission(mine?.permission ?? null)
         // Only fetch DNS when zbox is ACTIVE
         const hasActiveZbox = z.components?.some(
           (c) => extractComponentType(c.component.component_uid) === "zbox" && c.status === "ACTIVE"
@@ -459,7 +528,14 @@ export function ZpodDetailPage() {
       })
       .catch(() => toast.error("Failed to fetch zpod"))
       .finally(() => setLoading(false))
-  }, [fetchZpod, fetchEndpoints, fetchComponents, fetchProfiles, fetchZpodDns, zpodId])
+  }, [fetchZpod, fetchEndpoints, fetchComponents, fetchProfiles, fetchZpodDns, fetchZpodMyPermission, zpodId])
+
+  // Fetch users & permission groups (used by permission editors). Tolerate
+  // failures: a non-superadmin may lack access to one or both endpoints.
+  useEffect(() => {
+    fetchUsers().then(setAllUsers).catch(() => setAllUsers([]))
+    fetchPermissionGroups().then(setAllGroups).catch(() => setAllGroups([]))
+  }, [fetchUsers, fetchPermissionGroups])
 
   usePolling(loadZpod)
 
@@ -544,6 +620,60 @@ export function ZpodDetailPage() {
       toast.error(`Failed to remove DNS entry "${deleteDnsTarget.hostname}"`)
     } finally {
       setDeletingDns(false)
+    }
+  }
+
+  const closePermAddDialog = () => {
+    setPermAddTarget(null)
+    setPermAddSelection("")
+  }
+
+  const handlePermAdd = async () => {
+    if (!zpod || !permAddTarget || !permAddSelection) return
+    const targetId = Number(permAddSelection)
+    if (!Number.isFinite(targetId)) return
+    setPermMutating(true)
+    try {
+      if (permAddTarget.kind === "user") {
+        await addZpodPermissionUser(zpod.id, permAddTarget.permission, { user_id: targetId })
+        const name = allUsers.find((u) => u.id === targetId)?.username ?? `#${targetId}`
+        toast.success(`User "${name}" granted ${permAddTarget.permission}`)
+      } else {
+        await addZpodPermissionGroup(zpod.id, permAddTarget.permission, { group_id: targetId })
+        const name = allGroups.find((g) => g.id === targetId)?.name ?? `#${targetId}`
+        toast.success(`Group "${name}" granted ${permAddTarget.permission}`)
+      }
+      closePermAddDialog()
+      loadZpod()
+    } catch {
+      toast.error(`Failed to add ${permAddTarget.kind}`)
+    } finally {
+      setPermMutating(false)
+    }
+  }
+
+  const handlePermRemove = async () => {
+    if (!zpod || !permRemoveTarget) return
+    setPermMutating(true)
+    try {
+      if (permRemoveTarget.kind === "user") {
+        await removeZpodPermissionUser(zpod.id, permRemoveTarget.permission, {
+          user_id: permRemoveTarget.id,
+        })
+      } else {
+        await removeZpodPermissionGroup(zpod.id, permRemoveTarget.permission, {
+          group_id: permRemoveTarget.id,
+        })
+      }
+      toast.success(
+        `${permRemoveTarget.kind === "user" ? "User" : "Group"} "${permRemoveTarget.name}" removed from ${permRemoveTarget.permission}`
+      )
+      setPermRemoveTarget(null)
+      loadZpod()
+    } catch {
+      toast.error(`Failed to remove ${permRemoveTarget.kind}`)
+    } finally {
+      setPermMutating(false)
     }
   }
 
@@ -634,6 +764,43 @@ export function ZpodDetailPage() {
     ?.filter((p) => p.permission === "OWNER")
     .flatMap((p) => p.users.map((u) => u.username))
   const ownerStr = owners?.length ? owners.join(", ") : "—"
+
+  // Is the current user a maintainer? Driven by GET /zpods/{id}/permissions/mine
+  // (superadmins get a virtual ADMIN server-side, so no client-side special case).
+  const isMaintainer =
+    myPermission === ZpodPermissionEnum.OWNER ||
+    myPermission === ZpodPermissionEnum.ADMIN
+
+  // Per-permission lookup (kept in fixed order)
+  const permissionLevels: ZpodPermission[] = [
+    ZpodPermissionEnum.OWNER,
+    ZpodPermissionEnum.ADMIN,
+    ZpodPermissionEnum.USER,
+  ]
+  const permissionsByLevel = new Map<ZpodPermission, { users: User[]; groups: PermissionGroup[] }>()
+  for (const level of permissionLevels) {
+    const entry = zpod.permissions?.find((p) => p.permission === level)
+    permissionsByLevel.set(level, {
+      users: entry?.users ?? [],
+      groups: entry?.permission_groups ?? [],
+    })
+  }
+
+  // For the add dialog: candidates not already assigned at the target level
+  const addCandidates = (() => {
+    if (!permAddTarget) return [] as { id: number; label: string }[]
+    const current = permissionsByLevel.get(permAddTarget.permission)
+    if (permAddTarget.kind === "user") {
+      const taken = new Set(current?.users.map((u) => u.id))
+      return allUsers
+        .filter((u) => !taken.has(u.id))
+        .map((u) => ({ id: u.id, label: u.username }))
+    }
+    const taken = new Set(current?.groups.map((g) => g.id))
+    return allGroups
+      .filter((g) => !taken.has(g.id))
+      .map((g) => ({ id: g.id, label: g.name }))
+  })()
 
   // Features
   const featureStr =
@@ -727,14 +894,16 @@ export function ZpodDetailPage() {
           </div>
           {statusBadgeElement}
         </div>
-        <Button
-          variant="destructive"
-          size="sm"
-          onClick={() => setShowDestroy(true)}
-        >
-          <Trash2 className="mr-1 h-3 w-3" />
-          Destroy
-        </Button>
+        {isMaintainer && (
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setShowDestroy(true)}
+          >
+            <Trash2 className="mr-1 h-3 w-3" />
+            Destroy
+          </Button>
+        )}
       </div>
 
       {/* Destroy dialog */}
@@ -920,15 +1089,17 @@ export function ZpodDetailPage() {
                 </Badge>
               )}
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setShowAddComponent(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add Component
-            </Button>
+            {isMaintainer && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setShowAddComponent(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Component
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -1074,7 +1245,7 @@ export function ZpodDetailPage() {
                             </Button>
                           </IconTooltip>
                         )}
-                        {extractComponentType(comp.component.component_uid) !== "zbox" && (
+                        {isMaintainer && extractComponentType(comp.component.component_uid) !== "zbox" && (
                           <IconTooltip label="Remove component">
                             <Button
                               variant="outline"
@@ -1098,6 +1269,230 @@ export function ZpodDetailPage() {
         </CardContent>
       </Card>
 
+      {/* Permissions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <ShieldCheck className="h-4 w-4" />
+            Permissions
+            {!isMaintainer && (
+              <Badge variant="outline" className="ml-1 text-[10px] font-normal">
+                Read-only
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {permissionLevels.map((level) => {
+            const entry = permissionsByLevel.get(level)!
+            return (
+              <div key={level} className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={
+                        level === "OWNER"
+                          ? "border-amber-500/50 text-amber-300"
+                          : level === "ADMIN"
+                          ? "border-purple-500/50 text-purple-300"
+                          : "border-blue-500/50 text-blue-300"
+                      }
+                    >
+                      {level}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground">
+                      {entry.users.length} user{entry.users.length !== 1 && "s"}
+                      {", "}
+                      {entry.groups.length} group{entry.groups.length !== 1 && "s"}
+                    </span>
+                  </div>
+                  {isMaintainer && (
+                    <div className="flex gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 h-7"
+                        onClick={() => {
+                          setPermAddSelection("")
+                          setPermAddTarget({ permission: level, kind: "user" })
+                        }}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add user
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 h-7"
+                        onClick={() => {
+                          setPermAddSelection("")
+                          setPermAddTarget({ permission: level, kind: "group" })
+                        }}
+                      >
+                        <Plus className="h-3 w-3" />
+                        Add group
+                      </Button>
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {entry.users.length === 0 && entry.groups.length === 0 ? (
+                    <span className="text-xs text-muted-foreground italic">No assignments</span>
+                  ) : (
+                    <>
+                      {entry.users.map((u) => (
+                        <Badge
+                          key={`u-${u.id}`}
+                          variant="secondary"
+                          className="gap-1 pr-1 font-normal"
+                        >
+                          <UserIcon className="h-3 w-3" />
+                          {u.username}
+                          {isMaintainer && (
+                            <IconTooltip label="Remove user">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-4 w-4 ml-0.5 text-muted-foreground hover:text-destructive"
+                                onClick={() =>
+                                  setPermRemoveTarget({
+                                    permission: level,
+                                    kind: "user",
+                                    id: u.id,
+                                    name: u.username,
+                                  })
+                                }
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </IconTooltip>
+                          )}
+                        </Badge>
+                      ))}
+                      {entry.groups.map((g) => (
+                        <Badge
+                          key={`g-${g.id}`}
+                          variant="secondary"
+                          className="gap-1 pr-1 font-normal"
+                        >
+                          <UsersIcon className="h-3 w-3" />
+                          {g.name}
+                          {isMaintainer && (
+                            <IconTooltip label="Remove group">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-4 w-4 ml-0.5 text-muted-foreground hover:text-destructive"
+                                onClick={() =>
+                                  setPermRemoveTarget({
+                                    permission: level,
+                                    kind: "group",
+                                    id: g.id,
+                                    name: g.name,
+                                  })
+                                }
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </IconTooltip>
+                          )}
+                        </Badge>
+                      ))}
+                    </>
+                  )}
+                </div>
+                {level !== permissionLevels[permissionLevels.length - 1] && (
+                  <Separator className="mt-3" />
+                )}
+              </div>
+            )
+          })}
+        </CardContent>
+      </Card>
+
+      {/* Add permission user/group dialog */}
+      <Dialog open={permAddTarget != null} onOpenChange={(open) => !open && closePermAddDialog()}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              Add {permAddTarget?.kind === "user" ? "user" : "group"} to{" "}
+              {permAddTarget?.permission}
+            </DialogTitle>
+            <DialogDescription>
+              Grant {permAddTarget?.permission} permission on this zPod to a{" "}
+              {permAddTarget?.kind === "user" ? "user" : "permission group"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                {permAddTarget?.kind === "user" ? "User" : "Group"}
+              </Label>
+              <Select value={permAddSelection} onValueChange={setPermAddSelection}>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      addCandidates.length === 0
+                        ? `No ${permAddTarget?.kind === "user" ? "users" : "groups"} available`
+                        : `Select a ${permAddTarget?.kind === "user" ? "user" : "group"}`
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {addCandidates.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closePermAddDialog} disabled={permMutating}>
+              Cancel
+            </Button>
+            <Button onClick={handlePermAdd} disabled={!permAddSelection || permMutating}>
+              {permMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove permission user/group confirmation */}
+      <Dialog
+        open={permRemoveTarget != null}
+        onOpenChange={(open) => !open && setPermRemoveTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Remove {permRemoveTarget?.kind === "user" ? "user" : "group"} from{" "}
+              {permRemoveTarget?.permission}
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to revoke {permRemoveTarget?.permission} permission from{" "}
+              <span className="font-semibold">{permRemoveTarget?.name}</span>?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPermRemoveTarget(null)}
+              disabled={permMutating}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handlePermRemove} disabled={permMutating}>
+              {permMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* DNS Entries — only shown when zbox is ACTIVE (it's the DNS server) */}
       {zboxActive && <Card>
         <CardHeader className="pb-3">
@@ -1111,15 +1506,17 @@ export function ZpodDetailPage() {
                 </Badge>
               )}
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setShowAddDns(true)}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              Add DNS Entry
-            </Button>
+            {isMaintainer && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setShowAddDns(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add DNS Entry
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -1158,7 +1555,7 @@ export function ZpodDetailPage() {
                           {isFqdn ? entry.hostname : `${entry.hostname}.${zpod.domain}`}
                         </TableCell>
                         <TableCell>
-                          {!isProtected && (
+                          {isMaintainer && !isProtected && (
                             <IconTooltip label="Remove DNS entry">
                               <Button
                                 variant="outline"

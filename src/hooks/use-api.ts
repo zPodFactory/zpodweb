@@ -8,6 +8,11 @@ import type {
   ZpodCreate,
   ZpodDnsEntry,
   ZpodDnsCreate,
+  ZpodPermission,
+  ZpodPermissionMineView,
+  ZpodPermissionUserAddRemove,
+  ZpodPermissionGroupAddRemove,
+  PermissionGroup,
   ComponentFull,
   Library,
   Profile,
@@ -301,6 +306,81 @@ export function useApi() {
     [getClient]
   )
 
+  const fetchUsers = useCallback(async (): Promise<User[]> => {
+    const client = getClient()
+    const { data } = await client.get<User[]>("/users")
+    return data
+  }, [getClient])
+
+  const fetchPermissionGroups = useCallback(async (): Promise<PermissionGroup[]> => {
+    const client = getClient()
+    const { data } = await client.get<PermissionGroup[]>("/permission_groups")
+    return data
+  }, [getClient])
+
+  const fetchZpodMyPermission = useCallback(
+    async (zpodId: number): Promise<ZpodPermissionMineView> => {
+      const client = getClient()
+      const { data } = await client.get<ZpodPermissionMineView>(
+        `/zpods/${zpodId}/permissions/mine`
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const addZpodPermissionUser = useCallback(
+    async (
+      zpodId: number,
+      permission: ZpodPermission,
+      payload: ZpodPermissionUserAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.post(`/zpods/${zpodId}/permissions/${permission}/users`, payload)
+    },
+    [getClient]
+  )
+
+  const removeZpodPermissionUser = useCallback(
+    async (
+      zpodId: number,
+      permission: ZpodPermission,
+      payload: ZpodPermissionUserAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/zpods/${zpodId}/permissions/${permission}/users`, {
+        data: payload,
+      })
+    },
+    [getClient]
+  )
+
+  const addZpodPermissionGroup = useCallback(
+    async (
+      zpodId: number,
+      permission: ZpodPermission,
+      payload: ZpodPermissionGroupAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.post(`/zpods/${zpodId}/permissions/${permission}/groups`, payload)
+    },
+    [getClient]
+  )
+
+  const removeZpodPermissionGroup = useCallback(
+    async (
+      zpodId: number,
+      permission: ZpodPermission,
+      payload: ZpodPermissionGroupAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/zpods/${zpodId}/permissions/${permission}/groups`, {
+        data: payload,
+      })
+    },
+    [getClient]
+  )
+
   const deleteZpodComponent = useCallback(
     async (zpodId: number, componentId: string): Promise<void> => {
       const client = getClient()
@@ -343,6 +423,8 @@ export function useApi() {
 
   return {
     fetchCurrentUser,
+    fetchUsers,
+    fetchPermissionGroups,
     fetchZpods,
     fetchZpod,
     deleteZpod,
@@ -353,6 +435,11 @@ export function useApi() {
     fetchZpodDns,
     createZpodDns,
     deleteZpodDns,
+    fetchZpodMyPermission,
+    addZpodPermissionUser,
+    removeZpodPermissionUser,
+    addZpodPermissionGroup,
+    removeZpodPermissionGroup,
     enableComponent,
     disableComponent,
     fetchLibraries,
