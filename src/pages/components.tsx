@@ -32,22 +32,39 @@ import { SortableHead } from "@/components/sortable-head"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ComponentUploadDialog } from "@/components/component-upload-dialog"
 import { toast } from "sonner"
-import { Search, Upload, AlertTriangle, Loader2, Layers } from "lucide-react"
+import { Search, Upload, AlertTriangle, Loader2, Layers, Download, Trash2 } from "lucide-react"
 import { useAuthStore } from "@/stores/auth-store"
 import type { ComponentFull, Profile, ProfileItem } from "@/types"
 import { StatusBadge } from "@/components/status-badge"
 import { statusClasses } from "@/lib/status-colors"
 import { Switch } from "@/components/ui/switch"
 
+function DownloadProgressBar({ percent }: { percent: number }) {
+  const clamped = Math.max(0, Math.min(100, percent))
+  return (
+    <div
+      className="inline-flex w-[220px] items-center gap-2 text-xs font-semibold text-[#89b4fa]"
+      role="progressbar"
+      aria-valuenow={clamped}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <Download className="h-3.5 w-3.5 shrink-0 animate-pulse" />
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#89b4fa]/20">
+        <div
+          className="h-full rounded-full bg-[#89b4fa] transition-[width] duration-500 ease-out"
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+      <span className="shrink-0 tabular-nums">{clamped}%</span>
+    </div>
+  )
+}
+
 function DownloadStatusBadge({ downloadStatus }: { downloadStatus: string }) {
   const pct = Number(downloadStatus)
   if (!isNaN(pct)) {
-    return (
-      <Badge variant="outline" className={`gap-1 ${statusClasses("DOWNLOADING")}`}>
-        <Loader2 className="h-3 w-3 animate-spin" />
-        Downloading... ({pct}%)
-      </Badge>
-    )
+    return <DownloadProgressBar percent={pct} />
   }
   const labelMap: Record<string, string> = {
     SCHEDULED: "Scheduled",
@@ -236,7 +253,7 @@ export function ComponentsPage() {
                       {comp.component_name}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <Badge variant="outline">{comp.component_version}</Badge>
+                      <Badge variant="outline" className="font-mono bg-[#cba6f7]/15 text-[#cba6f7] border-[#cba6f7]/40">{comp.component_version}</Badge>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       {comp.library_name}
@@ -318,8 +335,8 @@ export function ComponentsPage() {
                             </p>
                             <p className="text-sm text-zinc-400 mt-1">
                               {comp.status === "ACTIVE"
-                                ? "Disabling will remove this component from the list available for profiles and zpod deployments."
-                                : "Enabling will download and verify the component, making it available for use in profiles and zpod deployments."}
+                                ? "Disable and delete the component file from disk."
+                                : "Attempt automatic download of the component."}
                             </p>
                           </HoverCardContent>
                         </HoverCard>
@@ -353,19 +370,35 @@ export function ComponentsPage() {
             <DialogDescription>
               {confirmTarget?.status === "ACTIVE" ? (
                 <>
-                  Are you sure you want to disable{" "}
-                  <span className="font-semibold">{confirmTarget?.component_uid}</span>?
-                  This will remove it from the list of components available for profiles and zpod deployments.
+                  <span className="block">
+                    Are you sure you want to disable{" "}
+                    <span className="rounded border border-[#89b4fa]/30 bg-[#89b4fa]/10 px-1.5 py-0.5 font-mono font-semibold text-[#89b4fa]">{confirmTarget?.component_uid}</span>
+                    {" "}?
+                  </span>
+                  <span className="mt-2 block">
+                    This will remove it from the list of components available for profiles and zpod deployments.
+                  </span>
                 </>
               ) : (
                 <>
-                  Are you sure you want to enable{" "}
-                  <span className="font-semibold">{confirmTarget?.component_uid}</span>?
-                  This will download and verify the component, making it available for use in profiles and zpod deployments.
+                  <span className="block">
+                    Are you sure you want to enable{" "}
+                    <span className="rounded border border-[#89b4fa]/30 bg-[#89b4fa]/10 px-1.5 py-0.5 font-mono font-semibold text-[#89b4fa]">{confirmTarget?.component_uid}</span>
+                    {" "}?
+                  </span>
+                  <span className="mt-2 block">
+                    This will download and verify the component, making it available for use in profiles and zpod deployments.
+                  </span>
                 </>
               )}
             </DialogDescription>
           </DialogHeader>
+          {confirmTarget?.status === "ACTIVE" && (
+            <div className="flex items-center gap-2 rounded-md border border-[#fab387]/40 bg-[#fab387]/10 px-3 py-2 text-sm text-[#fab387]">
+              <Trash2 className="h-4 w-4 shrink-0" />
+              <p>The component file will be deleted for space efficiency.</p>
+            </div>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
