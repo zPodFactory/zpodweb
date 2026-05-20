@@ -244,7 +244,15 @@ export function ComponentsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sorted.map((comp) => (
+                {sorted.map((comp) => {
+                  const ds = comp.download_status
+                  const isTransitioning =
+                    ds === "SCHEDULED" ||
+                    ds === "VERIFYING_CHECKSUM" ||
+                    ds === "DOWNLOADING" ||
+                    (!!ds && !isNaN(Number(ds)))
+                  const toggleDisabled = toggling.has(comp.id) || isTransitioning
+                  return (
                   <TableRow key={comp.id}>
                     <TableCell className="font-mono whitespace-nowrap">
                       {comp.component_uid}
@@ -324,26 +332,33 @@ export function ComponentsPage() {
                             <span className="cursor-default">
                               <Switch
                                 checked={comp.status === "ACTIVE"}
-                                disabled={toggling.has(comp.id)}
+                                disabled={toggleDisabled}
                                 onCheckedChange={() => setConfirmTarget(comp)}
                               />
                             </span>
                           </HoverCardTrigger>
                           <HoverCardContent className="w-[260px] px-4 py-3 bg-[#181825] border-[#313244]" side="left">
                             <p className="text-sm font-semibold text-zinc-100">
-                              {comp.status === "ACTIVE" ? "Disable" : "Enable"} component
+                              {isTransitioning
+                                ? "Operation in progress"
+                                : comp.status === "ACTIVE"
+                                  ? "Disable component"
+                                  : "Enable component"}
                             </p>
                             <p className="text-sm text-zinc-400 mt-1">
-                              {comp.status === "ACTIVE"
-                                ? "Disable and delete the component file from disk."
-                                : "Attempt automatic download of the component."}
+                              {isTransitioning
+                                ? "Wait for the current operation to complete or fail before toggling again."
+                                : comp.status === "ACTIVE"
+                                  ? "Disable and delete the component file from disk."
+                                  : "Attempt automatic download of the component."}
                             </p>
                           </HoverCardContent>
                         </HoverCard>
                       </TableCell>
                     )}
                   </TableRow>
-                ))}
+                  )
+                })}
               </TableBody>
             </Table>
           )}
