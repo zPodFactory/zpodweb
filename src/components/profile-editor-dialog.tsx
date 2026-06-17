@@ -134,7 +134,7 @@ function stepsToProfile(
 }
 
 /** Extract major version from a component_uid.
- *  e.g. "esxi-8.0u3g" → "8", "zbox-12.11" → "12", "proxmox-bs-13" → "13" */
+ *  e.g. "esxi-8.0u3g" → "8", "zcore-12.11" → "12", "proxmox-bs-13" → "13" */
 function extractMajorVersion(uid: string): string {
   const type = extractComponentType(uid)
   // Strip the type prefix (and trailing dash) from the uid to get the version part
@@ -194,11 +194,11 @@ export function ProfileEditorDialog({
 
   const componentOptions = useMemo(() => getComponentOptions(components), [components])
 
-  // Zbox options for the mandatory first step
-  const zboxUids = useMemo(
+  // Zcore options for the mandatory first step
+  const zcoreUids = useMemo(
     () =>
       components
-        .filter((c) => c.status === "ACTIVE" && extractComponentType(c.component_uid) === "zbox")
+        .filter((c) => c.status === "ACTIVE" && extractComponentType(c.component_uid) === "zcore")
         .map((c) => c.component_uid)
         .filter((v, i, a) => a.indexOf(v) === i)
         .sort(),
@@ -212,30 +212,30 @@ export function ProfileEditorDialog({
       setSteps(profileToSteps(profile.profile))
     } else {
       setName("")
-      // Always start with zbox as first step
-      const defaultZbox = zboxUids[0] ?? "zbox"
-      setSteps([{ id: uid(), items: [newItem(defaultZbox)] }])
+      // Always start with zcore as first step
+      const defaultZcore = zcoreUids[0] ?? "zcore"
+      setSteps([{ id: uid(), items: [newItem(defaultZcore)] }])
     }
     setExpandedStep(null)
-  }, [open, profile, zboxUids])
+  }, [open, profile, zcoreUids])
 
   const isEditing = profile != null
-  const isValid = name.trim().length > 0 && steps.length > 0 && steps[0].items.length === 1 && extractComponentType(steps[0].items[0].component_uid) === "zbox"
+  const isValid = name.trim().length > 0 && steps.length > 0 && steps[0].items.length === 1 && extractComponentType(steps[0].items[0].component_uid) === "zcore"
 
   // Step manipulation
   const moveStep = (idx: number, dir: -1 | 1) => {
-    if (idx === 0 && dir === -1) return // zbox stays first
-    if (idx + dir === 0 && dir === -1) return // can't move before zbox
+    if (idx === 0 && dir === -1) return // zcore stays first
+    if (idx + dir === 0 && dir === -1) return // can't move before zcore
     const next = [...steps]
     const target = idx + dir
     if (target < 0 || target >= next.length) return
-    if (target === 0) return // protect zbox position
+    if (target === 0) return // protect zcore position
     ;[next[idx], next[target]] = [next[target], next[idx]]
     setSteps(next)
   }
 
   const removeStep = (idx: number) => {
-    if (idx === 0) return // can't remove zbox
+    if (idx === 0) return // can't remove zcore
     setSteps((prev) => prev.filter((_, i) => i !== idx))
   }
 
@@ -297,7 +297,7 @@ export function ProfileEditorDialog({
           <DialogTitle>{isEditing ? "Edit Profile" : "Create Profile"}</DialogTitle>
           <DialogDescription>
             Steps run in serial (top to bottom). Items within a step run in parallel.
-            zBox is always the first step.
+            zCore is always the first step.
           </DialogDescription>
         </DialogHeader>
 
@@ -316,7 +316,7 @@ export function ProfileEditorDialog({
           <div className="space-y-2">
             <Label>Deployment Steps</Label>
             {steps.map((step, stepIdx) => {
-              const isZbox = stepIdx === 0
+              const isZcore = stepIdx === 0
               const isParallel = step.items.length > 1
               const isExp = expandedStep === step.id
               return (
@@ -354,7 +354,7 @@ export function ProfileEditorDialog({
                       })}
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0">
-                      {!isZbox && (
+                      {!isZcore && (
                         <>
                           <IconTooltip label="Move up">
                             <Button
@@ -418,7 +418,7 @@ export function ProfileEditorDialog({
                                 {extractComponentType(item.component_uid)}
                               </span>
                               <div className="flex-1" />
-                              {!isZbox && step.items.length > 1 && (
+                              {!isZcore && step.items.length > 1 && (
                                 <IconTooltip label="Remove from step">
                                   <Button
                                     variant="ghost"
@@ -444,8 +444,8 @@ export function ProfileEditorDialog({
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {(isZbox
-                                      ? zboxUids
+                                    {(isZcore
+                                      ? zcoreUids
                                       : componentOptions
                                           .filter((o) => o.type === extractComponentType(item.component_uid))
                                           .flatMap((o) => o.uids)
@@ -566,7 +566,7 @@ export function ProfileEditorDialog({
 
                       {/* Add parallel item to this step / ungroup */}
                       <div className="flex items-center gap-2">
-                        {!isZbox && (
+                        {!isZcore && (
                           <>
                             <Select
                               onValueChange={(uid) => addItemToStep(stepIdx, uid)}
@@ -578,7 +578,7 @@ export function ProfileEditorDialog({
                               </SelectTrigger>
                               <SelectContent>
                                 {componentOptions
-                                  .filter((o) => o.type !== "zbox")
+                                  .filter((o) => o.type !== "zcore")
                                   .map((opt) => (
                                     <SelectItem
                                       key={opt.label}
@@ -620,7 +620,7 @@ export function ProfileEditorDialog({
               </SelectTrigger>
               <SelectContent>
                 {componentOptions
-                  .filter((o) => o.type !== "zbox")
+                  .filter((o) => o.type !== "zcore")
                   .map((opt) => (
                     <SelectItem
                       key={opt.label}

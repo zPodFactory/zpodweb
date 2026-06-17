@@ -106,8 +106,8 @@ function cidrToGateway(cidr: string): string {
   return ipToString((cidrToNetworkIp(cidr) | 1) >>> 0)
 }
 
-/** Network address + 2 = zbox IP (DNS server for all networks) */
-function cidrToZboxIp(cidr: string): string {
+/** Network address + 2 = zcore IP (DNS server for all networks) */
+function cidrToZcoreIp(cidr: string): string {
   return ipToString((cidrToNetworkIp(cidr) | 2) >>> 0)
 }
 
@@ -208,7 +208,7 @@ function NetworkTopology({
   const prefix = networks.length > 0 ? cidrPrefix(networks[0].cidr) : "26"
   const firstNet = networks.length > 0 ? networks[0] : null
   const restNets = networks.slice(1)
-  const zboxIp = firstNet ? cidrToZboxIp(firstNet.cidr) : "—"
+  const zcoreIp = firstNet ? cidrToZcoreIp(firstNet.cidr) : "—"
   const t1InterfaceIp = firstNet
     ? `${cidrToGateway(firstNet.cidr)}/${prefix}`
     : "—"
@@ -217,13 +217,13 @@ function NetworkTopology({
   const edgeCluster = endpointNetwork?.edgecluster ?? "—"
   const transportZone = endpointNetwork?.transportzone ?? "—"
 
-  // Find zbox component for version display
-  const zboxComp = components.find((c) => extractComponentType(c.component.component_uid) === "zbox")
-  const zboxVersion = zboxComp ? extractComponentVersion(zboxComp.component.component_uid) : ""
+  // Find zcore component for version display
+  const zcoreComp = components.find((c) => extractComponentType(c.component.component_uid) === "zcore")
+  const zcoreVersion = zcoreComp ? extractComponentVersion(zcoreComp.component.component_uid) : ""
 
-  // Sort components by IP address (numerically), exclude zbox (shown separately)
+  // Sort components by IP address (numerically), exclude zcore (shown separately)
   const sortedComponents = [...components]
-    .filter((c) => !c.component.component_uid.toLowerCase().includes("zbox"))
+    .filter((c) => !c.component.component_uid.toLowerCase().includes("zcore"))
     .sort((a, b) => {
       const ipToNum = (ip: string | null) => {
         if (!ip) return Number.MAX_SAFE_INTEGER
@@ -306,13 +306,13 @@ function NetworkTopology({
               <div className="flex items-stretch gap-4 ml-[89px]">
                 <div className="w-0.5 bg-purple-500/20 min-h-[20px]" />
                 <div className="text-xs text-muted-foreground space-y-0.5 py-1">
-                  <div className="font-medium">NSX-T1 Static routes to <span className="text-amber-400/80">zbox</span> (eth0):</div>
+                  <div className="font-medium">NSX-T1 Static routes to <span className="text-amber-400/80">zcore</span> (eth0):</div>
                   {restNets.map((net) => (
                     <div key={net.id} className="font-mono ml-2">
                       <span className="text-foreground/80">{net.cidr}</span>
                       {" → "}
-                      <span className="text-foreground/80">{zboxIp}</span>
-                      <span className="font-sans text-amber-400/80"> (zbox)</span>
+                      <span className="text-foreground/80">{zcoreIp}</span>
+                      <span className="font-sans text-amber-400/80"> (zcore)</span>
                     </div>
                   ))}
                 </div>
@@ -338,18 +338,18 @@ function NetworkTopology({
         </div>
         <div className="relative w-full mt-0 overflow-hidden" style={{ WebkitMaskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)', maskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)' }}>
           <div className="flex justify-center gap-5 mt-0 flex-wrap">
-            {/* zBox card with interface details — always first */}
+            {/* zCore card with interface details — always first */}
             <div className="flex flex-col items-center relative">
               <div className="absolute top-0 h-0.5 pointer-events-none" style={{ left: '-50vw', right: '-50vw', background: 'rgb(113 113 122 / 0.35)' }} />
               <div className="w-px h-5 bg-amber-500/40" />
               <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-center min-w-[110px] shadow-sm whitespace-nowrap">
                 <div className="text-xs uppercase tracking-wider text-amber-400/70 font-medium">
-                  zBox
-                  {zboxVersion && <span className="ml-1 normal-case">{zboxVersion}</span>}
+                  zCore
+                  {zcoreVersion && <span className="ml-1 normal-case">{zcoreVersion}</span>}
                 </div>
-                <div className="text-xs font-semibold text-amber-300 mt-0.5">{zboxComp?.hostname ?? "zbox"}</div>
+                <div className="text-xs font-semibold text-amber-300 mt-0.5">{zcoreComp?.hostname ?? "zcore"}</div>
                 <div className="text-xs text-muted-foreground font-mono mt-0.5">
-                  {zboxIp}
+                  {zcoreIp}
                 </div>
                 {/* Interface details */}
                 <div className="mt-1.5 pt-1.5 border-t border-amber-500/20 space-y-0.5 text-left">
@@ -357,7 +357,7 @@ function NetworkTopology({
                     <div className="text-xs font-mono whitespace-nowrap">
                       <span className="text-amber-300">eth0</span>
                       <span className="text-muted-foreground ml-1">
-                        {cidrToZboxIp(firstNet.cidr)}/{prefix}
+                        {cidrToZcoreIp(firstNet.cidr)}/{prefix}
                       </span>
                       <span className="text-muted-foreground/60 font-sans ml-1">(Untagged)</span>
                     </div>
@@ -481,19 +481,19 @@ export function ZpodDetailPage() {
 
   const zpodId = Number(id)
 
-  // Check if zbox component is ACTIVE (DNS server must be up before querying DNS)
-  const zboxActive = zpod?.components?.some(
-    (c) => extractComponentType(c.component.component_uid) === "zbox" && c.status === "ACTIVE"
+  // Check if zcore component is ACTIVE (DNS server must be up before querying DNS)
+  const zcoreActive = zpod?.components?.some(
+    (c) => extractComponentType(c.component.component_uid) === "zcore" && c.status === "ACTIVE"
   ) ?? false
 
   const loadZpod = useCallback(() => {
     fetchZpod(zpodId).then((z) => {
       setZpod(z)
-      // Only fetch DNS when zbox is ACTIVE
-      const hasActiveZbox = z.components?.some(
-        (c) => extractComponentType(c.component.component_uid) === "zbox" && c.status === "ACTIVE"
+      // Only fetch DNS when zcore is ACTIVE
+      const hasActiveZcore = z.components?.some(
+        (c) => extractComponentType(c.component.component_uid) === "zcore" && c.status === "ACTIVE"
       )
-      if (hasActiveZbox) {
+      if (hasActiveZcore) {
         fetchZpodDns(zpodId).then(setDnsEntries).catch(() => {})
       }
     }).catch(() => {})
@@ -515,11 +515,11 @@ export function ZpodDetailPage() {
         setAllComponents(comps)
         setProfiles(profs)
         setMyPermission(mine?.permission ?? null)
-        // Only fetch DNS when zbox is ACTIVE
-        const hasActiveZbox = z.components?.some(
-          (c) => extractComponentType(c.component.component_uid) === "zbox" && c.status === "ACTIVE"
+        // Only fetch DNS when zcore is ACTIVE
+        const hasActiveZcore = z.components?.some(
+          (c) => extractComponentType(c.component.component_uid) === "zcore" && c.status === "ACTIVE"
         )
-        if (hasActiveZbox) {
+        if (hasActiveZcore) {
           try {
             const dns = await fetchZpodDns(zpodId)
             setDnsEntries(dns)
@@ -677,17 +677,17 @@ export function ZpodDetailPage() {
     }
   }
 
-  // Hostnames that belong to zbox (protected from deletion)
-  const zboxHostnames = new Set<string>()
+  // Hostnames that belong to zcore (protected from deletion)
+  const zcoreHostnames = new Set<string>()
   if (zpod) {
-    const zboxComp = zpod.components?.find((c) => extractComponentType(c.component.component_uid) === "zbox")
-    if (zboxComp?.hostname) {
-      zboxHostnames.add(zboxComp.hostname)
-      zboxHostnames.add(`${zboxComp.hostname}.${zpod.domain}`)
+    const zcoreComp = zpod.components?.find((c) => extractComponentType(c.component.component_uid) === "zcore")
+    if (zcoreComp?.hostname) {
+      zcoreHostnames.add(zcoreComp.hostname)
+      zcoreHostnames.add(`${zcoreComp.hostname}.${zpod.domain}`)
     }
-    zboxHostnames.add("zbox")
-    zboxHostnames.add(`zbox.${zpod.domain}`)
-    zboxHostnames.add("localhost")
+    zcoreHostnames.add("zcore")
+    zcoreHostnames.add(`zcore.${zpod.domain}`)
+    zcoreHostnames.add("localhost")
   }
 
   // Build progress hover card data (must be before early returns for hook rules)
@@ -954,8 +954,8 @@ export function ZpodDetailPage() {
               value={
                 zpod.networks?.length > 0 ? (
                   <span className="font-mono">
-                    {cidrToZboxIp(zpod.networks[0].cidr)}
-                    <span className="text-amber-400/80 font-sans ml-1">(zbox)</span>
+                    {cidrToZcoreIp(zpod.networks[0].cidr)}
+                    <span className="text-amber-400/80 font-sans ml-1">(zcore)</span>
                   </span>
                 ) : "—"
               }
@@ -1026,7 +1026,7 @@ export function ZpodDetailPage() {
                   {zpod.networks.map((net, idx) => {
                     const vlan = cidrToVlanId(net.cidr)
                     const isFirst = idx === 0
-                    const router = isFirst ? "NSX-T1" : "zbox"
+                    const router = isFirst ? "NSX-T1" : "zcore"
                     return (
                       <TableRow key={net.id}>
                         <TableCell className="font-mono whitespace-nowrap">{net.cidr}</TableCell>
@@ -1245,7 +1245,7 @@ export function ZpodDetailPage() {
                             </Button>
                           </IconTooltip>
                         )}
-                        {isMaintainer && extractComponentType(comp.component.component_uid) !== "zbox" && (
+                        {isMaintainer && extractComponentType(comp.component.component_uid) !== "zcore" && (
                           <IconTooltip label="Remove component">
                             <Button
                               variant="outline"
@@ -1493,8 +1493,8 @@ export function ZpodDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* DNS Entries — only shown when zbox is ACTIVE (it's the DNS server) */}
-      {zboxActive && <Card>
+      {/* DNS Entries — only shown when zcore is ACTIVE (it's the DNS server) */}
+      {zcoreActive && <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -1532,7 +1532,7 @@ export function ZpodDetailPage() {
               </TableHeader>
               <TableBody>
                 {[...dnsEntries]
-                  .filter((e) => e.hostname !== "localhost" && !(e.hostname.includes(".") && e.hostname.startsWith("zbox")))
+                  .filter((e) => e.hostname !== "localhost" && !(e.hostname.includes(".") && e.hostname.startsWith("zcore")))
                   .sort((a, b) => {
                     const ipToNum = (ip: string) => {
                       const parts = ip.split(".").map(Number)
@@ -1541,7 +1541,7 @@ export function ZpodDetailPage() {
                     return ipToNum(a.ip) - ipToNum(b.ip)
                   })
                   .map((entry) => {
-                    const isProtected = zboxHostnames.has(entry.hostname)
+                    const isProtected = zcoreHostnames.has(entry.hostname)
                     const isFqdn = entry.hostname.includes(".")
                     return (
                       <TableRow key={`${entry.ip}-${entry.hostname}`}>

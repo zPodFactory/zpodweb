@@ -33,7 +33,7 @@ export function extractComponentType(uid: string): string {
 
 /** Extract version string from uid by stripping the type prefix.
  *  e.g. "esxi-8.0u3g" → "8.0u3g", "proxmox-bs-4.1.2" → "4.1.2",
- *       "zbox-12.11-dev" → "12.11-dev" */
+ *       "zcore-12.11-dev" → "12.11-dev" */
 export function extractComponentVersion(uid: string): string {
   const type = extractComponentType(uid)
   return uid.slice(type.length).replace(/^-/, "") || ""
@@ -53,7 +53,7 @@ const typeColorCache = new Map<string, string>()
 
 /** Fixed color overrides for specific component types */
 const FIXED_COLORS: Record<string, string> = {
-  zbox: "#f59e0b", // amber-500 — matches zpod-detail topology
+  zcore: "#f59e0b", // amber-500 — matches zpod-detail topology
 }
 
 export function getComponentHex(uid: string): string {

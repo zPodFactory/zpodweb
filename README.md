@@ -15,7 +15,7 @@ zpodweb connects to the zPodFactory API (`zpodapi`) and provides a visual interf
 
 - **Dashboard** — overview of zPod counts, status distribution, and recent activity charts
 - **zPod Management** — list, create, inspect, and destroy zPods with full detail views
-- **Network Topology Diagram** — Visio-style interactive diagram showing NSX T0/T1 gateways, trunk segments, zBox interfaces, and deployed components with color-coded boxes per component type
+- **Network Topology Diagram** — Visio-style interactive diagram showing NSX T0/T1 gateways, trunk segments, zCore interfaces, and deployed components with color-coded boxes per component type
 - **Network Table** — auto-computed CIDR, gateway, DNS, VLAN ID, and router information for each zPod network
 - **Endpoint Management** — view compute (vSphere) and network (NSX) endpoint configurations side by side
 - **Component Browser** — searchable, filterable, and sortable component catalog with upload support

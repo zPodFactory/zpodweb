@@ -62,15 +62,15 @@ function parseAndValidate(
     components.filter((c) => c.status === "ACTIVE").map((c) => c.component_uid)
   )
 
-  // Validate first step is single zbox
+  // Validate first step is single zcore
   const firstStep = profile[0]
   if (firstStep) {
     const firstItem = Array.isArray(firstStep) ? firstStep[0] : firstStep
-    if (!firstItem || extractComponentType(firstItem.component_uid) !== "zbox") {
-      errors.push("First step must be a single zbox component")
+    if (!firstItem || extractComponentType(firstItem.component_uid) !== "zcore") {
+      errors.push("First step must be a single zcore component")
     }
     if (Array.isArray(firstStep)) {
-      errors.push("First step must be a single zbox component, not a parallel group")
+      errors.push("First step must be a single zcore component, not a parallel group")
     }
   } else {
     errors.push("Profile must contain at least one step")

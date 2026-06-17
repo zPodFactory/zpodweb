@@ -37,7 +37,9 @@ interface ComponentGroup {
 }
 
 function getComponentGroups(components: ComponentFull[]): ComponentGroup[] {
-  const active = components.filter((c) => c.status === "ACTIVE")
+  const active = components.filter(
+    (c) => c.status === "ACTIVE" && extractComponentType(c.component_uid) !== "zcore"
+  )
   const map = new Map<string, { type: string; major: string; uids: Set<string> }>()
   for (const c of active) {
     const type = extractComponentType(c.component_uid)
