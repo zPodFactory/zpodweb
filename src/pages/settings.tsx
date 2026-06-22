@@ -166,9 +166,9 @@ export function SettingsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <SortableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} />
-                  <SortableHead label="Description" sortKey="description" sort={sort} onToggle={toggleSort} className="hidden md:table-cell" />
-                  <SortableHead label="Value" sortKey="value" sort={sort} onToggle={toggleSort} />
+                  <SortableHead label="Name" sortKey="name" sort={sort} onToggle={toggleSort} className="w-[20%]" />
+                  <SortableHead label="Description" sortKey="description" sort={sort} onToggle={toggleSort} className="w-[40%] hidden md:table-cell" />
+                  <SortableHead label="Value" sortKey="value" sort={sort} onToggle={toggleSort} className="w-[30%]" />
                   <TableHead className="w-[100px]">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -183,7 +183,7 @@ export function SettingsPage() {
                     <TableCell className="hidden md:table-cell text-muted-foreground">
                       {setting.description}
                     </TableCell>
-                    <TableCell className="font-mono max-w-[300px] break-all">
+                    <TableCell className="font-mono break-all">
                       {isLicense ? "********" : setting.value}
                     </TableCell>
                     <TableCell>
