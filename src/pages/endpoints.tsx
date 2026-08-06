@@ -672,6 +672,9 @@ export function EndpointsPage() {
                       <DetailRow label="Resource Pool" value={ep.endpoints.compute.resource_pool} />
                       <DetailRow label="Datastore" value={ep.endpoints.compute.storage_datastore} />
                       <DetailRow label="VM Folder" value={ep.endpoints.compute.vmfolder} />
+                      {ep.endpoints.compute.vds && (
+                        <DetailRow label="VDS" value={ep.endpoints.compute.vds} />
+                      )}
                     </div>
                   </div>
                   <div>

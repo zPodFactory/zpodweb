@@ -242,17 +242,18 @@ export async function handleVsphereInventory(
     return
   }
 
-  const [datacenters, resourcePools, datastores, vmFolders] = await Promise.all([
+  const [datacenters, resourcePools, datastores, vmFolders, vds] = await Promise.all([
     vsphere.listDatacenters(session),
     vsphere.listResourcePools(session),
     vsphere.listDatastores(session),
     vsphere.listVmFolders(session),
+    vsphere.listVds(session),
   ])
 
   const result = {
     connected: true,
     version: session.version,
-    inventory: { datacenters, resourcePools, datastores, vmFolders },
+    inventory: { datacenters, resourcePools, datastores, vmFolders, vds },
   }
   sendJson(res, 200, result, route, start, body)
 }

@@ -75,6 +75,7 @@ export function EndpointCreateDialog({
   const [resourcePool, setResourcePool] = useState("")
   const [storageDatastore, setStorageDatastore] = useState("")
   const [vmfolder, setVmfolder] = useState("")
+  const [vds, setVds] = useState("")
 
   // Compute inventory state
   const [vsphereLoading, setVsphereLoading] = useState(false)
@@ -111,6 +112,7 @@ export function EndpointCreateDialog({
     setResourcePool("")
     setStorageDatastore("")
     setVmfolder("")
+    setVds("")
     setFolderTreeOpen(false)
   }
 
@@ -174,6 +176,7 @@ export function EndpointCreateDialog({
     setResourcePool("")
     setStorageDatastore("")
     setVmfolder("")
+    setVds("")
 
     try {
       const res = await axios.post<InventoryResult<VsphereInventory>>("/test/vsphere/inventory", {
@@ -252,6 +255,7 @@ export function EndpointCreateDialog({
           storage_policy: "",
           contentlibrary: "",
           vmfolder,
+          vds,
         },
         network: {
           // driver options: "nsxt" | "nsxt_projects" (nsxt_projects hidden — lacks testing)
@@ -573,6 +577,21 @@ export function EndpointCreateDialog({
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs">VDS (Optional)</Label>
+                    <Select value={vds || "__none__"} onValueChange={(v) => setVds(v === "__none__" ? "" : v)}>
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Select VDS (optional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__" className="text-sm text-muted-foreground">None</SelectItem>
+                        {vsphereInventory.vds.map((v) => (
+                          <SelectItem key={v} value={v} className="text-sm">{v}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               )}
