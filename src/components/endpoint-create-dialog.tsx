@@ -563,7 +563,7 @@ export function EndpointCreateDialog({
                       {vmfolder && <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />}
                     </div>
                     {folderTreeOpen && (
-                      <div className="border rounded-md py-1 max-h-40 overflow-y-auto scrollbar-themed">
+                      <div className="border rounded-md py-1 max-h-40 overflow-y-auto">
                         {vsphereInventory.vmFolders.map((item) => (
                           <FolderTreeNode
                             key={item.name}

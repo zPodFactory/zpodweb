@@ -24,8 +24,13 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
 import { Separator } from "@/components/ui/separator"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
 import { toast } from "sonner"
-import { Loader2, Cpu, Network } from "lucide-react"
+import { Loader2, Cpu, Network, ChevronRight } from "lucide-react"
 import { ProfileTrunk } from "@/components/profile-trunk"
 import { flattenProfileItems } from "@/lib/profile-utils"
 import { useAuthStore } from "@/stores/auth-store"
@@ -139,6 +144,7 @@ export function ZpodCreateDialog({
   const [profileName, setProfileName] = useState("")
   const [endpointId, setEndpointId] = useState("")
   const [creating, setCreating] = useState(false)
+  const [trunkExpanded, setTrunkExpanded] = useState(true)
 
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [endpoints, setEndpoints] = useState<EndpointFull[]>([])
@@ -157,6 +163,7 @@ export function ZpodCreateDialog({
     setDomain("")
     setProfileName("")
     setEndpointId("")
+    setTrunkExpanded(true)
     setDataLoading(true)
 
     Promise.all([fetchProfiles(), fetchEndpoints(), fetchSettings()])
@@ -239,7 +246,7 @@ export function ZpodCreateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create zPod</DialogTitle>
           <DialogDescription>
@@ -344,7 +351,24 @@ export function ZpodCreateDialog({
               if (!selectedProfile) return null
               const items = flattenProfileItems(selectedProfile.profile)
               if (items.length === 0) return null
-              return <ProfileTrunk items={items} />
+              return (
+                <Collapsible open={trunkExpanded} onOpenChange={setTrunkExpanded}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ChevronRight
+                        className={`h-3.5 w-3.5 transition-transform ${trunkExpanded ? "rotate-90" : ""}`}
+                      />
+                      Topology preview ({items.length} component{items.length !== 1 && "s"})
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <ProfileTrunk items={items} />
+                  </CollapsibleContent>
+                </Collapsible>
+              )
             })()}
 
             {/* Endpoint — only show if >1 active endpoint */}
