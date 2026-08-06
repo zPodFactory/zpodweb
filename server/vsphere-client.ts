@@ -168,6 +168,13 @@ const TRAVERSE_DC_VM: TraversalDef = {
   selectSet: ["traverseFolder"],
 }
 
+const TRAVERSE_DC_NETWORK: TraversalDef = {
+  name: "traverseDC",
+  type: "Datacenter",
+  path: "networkFolder",
+  selectSet: ["traverseFolder"],
+}
+
 const TRAVERSE_CR_RP: TraversalDef = {
   name: "traverseCR",
   type: "ComputeResource",
@@ -555,6 +562,17 @@ export async function listVmFolders(
     .map((ref) => buildTree(ref))
     .filter((n): n is VmFolderTreeItem => n !== null)
     .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+export async function listVds(
+  session: VsphereSession
+): Promise<string[]> {
+  const results = await retrieveProperties(session, {
+    type: "DistributedVirtualSwitch",
+    pathSet: ["name"],
+    traversals: [TRAVERSE_FOLDER, TRAVERSE_DC_NETWORK],
+  })
+  return results.map((r) => r.props["name"]).filter(Boolean).sort()
 }
 
 export async function checkVmFolder(

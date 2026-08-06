@@ -47,6 +47,7 @@ export interface EndpointCompute {
   storage_datastore: string
   contentlibrary: string
   vmfolder: string
+  vds: string
 }
 
 export interface EndpointNetwork {
@@ -77,6 +78,7 @@ export interface EndpointComputeCreate {
   storage_policy: string
   contentlibrary: string
   vmfolder: string
+  vds: string
 }
 
 export interface EndpointNetworkCreate {
@@ -131,6 +133,7 @@ export interface VsphereInventory {
   resourcePools: ResourcePoolItem[]
   datastores: DatastoreItem[]
   vmFolders: VmFolderTreeItem[]
+  vds: string[]
 }
 
 export interface NsxInventory {
