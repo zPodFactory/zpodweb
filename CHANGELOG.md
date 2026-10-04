@@ -24,6 +24,8 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-10-04
+
 ### Added
 
 - **The web UI for zPodFactory**, as a React single-page application talking to `zpodapi`
