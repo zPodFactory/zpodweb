@@ -66,7 +66,7 @@ export function AboutPage() {
           <div className="text-center space-y-2">
             <h2 className="text-xl font-bold text-primary">zPodFactory</h2>
             <Badge variant="outline">
-              zpodweb v0.1.0
+              zpodweb v{__APP_VERSION__}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground text-center max-w-xl leading-relaxed">

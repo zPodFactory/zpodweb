@@ -6,6 +6,11 @@ import { request as httpRequest } from "http"
 import { request as httpsRequest } from "https"
 import type { IncomingMessage, ServerResponse } from "http"
 import { inspect } from "util"
+import { readFileSync } from "fs"
+
+// The one version source: package.json. tools/release.py moves it at each cut, and the
+// About page shows it through __APP_VERSION__.
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string }
 
 // ANSI color helpers
 const c = {
@@ -184,6 +189,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), apiProxyPlugin()],
     envPrefix: "ZPODWEB_",
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
+    },
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

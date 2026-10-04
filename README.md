@@ -209,6 +209,25 @@ This file contains the API URL and token needed to connect.
 
 Target configurations are persisted in the browser's `localStorage`. When only a single target is saved, zpodweb will auto-connect on page load.
 
+## Releases
+
+The version lives in `package.json` and is shown on the About page. Every change is noted
+under `[Unreleased]` in [CHANGELOG.md](CHANGELOG.md) as it is made; a release is cut from a
+clean `main` with the shared zPodFactory tooling (standard library Python, see
+[tools/README.md](tools/README.md)):
+
+```bash
+python3 tools/release.py 0.2.0 --dry-run   # show what a cut would do
+python3 tools/release.py 0.2.0 --push      # changelog heading, version bump, build, commit, tag v0.2.0, push
+```
+
+Pushing the tag runs `.github/workflows/release.yml`, which publishes that changelog section
+as the [GitHub release](https://github.com/zPodFactory/zpodweb/releases). To fix a note after
+the fact, edit the section, push, and re-run the workflow (or
+`python3 tools/release_notes.py 0.2.0 --publish`). `python3 tools/release.py --check` runs the
+rules CI enforces on every push: the package version equals the newest changelog section and
+every tag has one.
+
 ## License
 
 See the [zPodFactory](https://github.com/zPodFactory) organization for license information.

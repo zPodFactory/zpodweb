@@ -25,3 +25,10 @@ dist-ssr
 *.sw?
 server/dist
 server/*.js
+
+# Local list of strings that must never enter the history (tools/release.py --check)
+.release-denylist
+
+# Local brainstorming, planning and testing scratch area; run transcripts and captures
+docs/
+runs/

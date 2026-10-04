@@ -26,6 +26,22 @@ npm run preview    # Preview production build locally
 
 Docker: `docker compose up -d --build` serves on port 8500.
 
+Releases follow the shared zPodFactory standard (see `tools/README.md` and the header of `CHANGELOG.md`):
+```bash
+python3 tools/release.py --check               # what CI runs: version == newest changelog section, every tag has a section
+python3 tools/release.py --draft               # the commits since the last tag as entry candidates for [Unreleased]
+python3 tools/release.py 0.2.0 --dry-run       # show what a cut would do
+python3 tools/release.py 0.2.0 --push          # cut: [Unreleased] -> [0.2.0], bump package.json + lock, build, commit, tag, push
+python3 tools/release_notes.py 0.2.0           # print the GitHub release body (add --publish to write it)
+```
+- Every user-visible change gets a bullet under `[Unreleased]` in `CHANGELOG.md`: what changed for
+  the person using the web UI, and why in a clause.
+- The version is `package.json` only; the About page reads it through `__APP_VERSION__` (Vite `define`).
+  `release.py` moves it, and the two copies in `package-lock.json`, at each cut.
+- Never tag by hand, never edit a release on GitHub: fix the changelog and re-run the workflow
+  (`workflow_dispatch`, blank version republishes every tag). Keep the forbidden-string list in
+  `.release-denylist` (git-ignored) for the names that must never enter the history.
+
 ## Development Workflow
 
 Use `npm run dev` for local development — Vite provides hot module replacement so changes are reflected instantly. The Vite dev server includes a proxy config (`vite.config.ts`) that replicates the Nginx `/api/` reverse proxy behavior, dynamically routing requests based on the `X-Target-Url` header.
