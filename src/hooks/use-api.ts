@@ -18,6 +18,10 @@ import type {
   ZpodPermissionMineView,
   ZpodPermissionUserAddRemove,
   ZpodPermissionGroupAddRemove,
+  ZpodNetworkView,
+  ZpodNetworkCreate,
+  ZpodNetworkRoutingView,
+  ZpodNetworkRoutingRunView,
   PermissionGroup,
   ComponentFull,
   Library,
@@ -51,7 +55,10 @@ function useApiClient() {
     instance.interceptors.response.use(
       (response) => response,
       (error) => {
-        if (error.response?.status === 403) {
+        // A 403 on a zPod network route is a refused operation (zboxapi's reserved
+        // VLANs, superadmin-only routing), not an expired session: no logout.
+        const isNetworkRoute = /\/zpods\/[^/]+\/networks(\/|$)/.test(error.config?.url ?? "")
+        if (error.response?.status === 403 && !isNetworkRoute) {
           useAuthStore.getState().logout()
           useTargetStore.getState().clearActiveTarget()
         }
@@ -308,6 +315,84 @@ export function useApi() {
     async (zpodId: number, ip: string, hostname: string): Promise<void> => {
       const client = getClient()
       await client.delete(`/zpods/${zpodId}/dns/${ip}/${hostname}`)
+    },
+    [getClient]
+  )
+
+  const fetchZpodNetworks = useCallback(
+    async (zpodId: number): Promise<ZpodNetworkView[]> => {
+      const client = getClient()
+      const { data } = await client.get<ZpodNetworkView[]>(`/zpods/${zpodId}/networks`)
+      return data
+    },
+    [getClient]
+  )
+
+  const addZpodNetwork = useCallback(
+    async (zpodId: number, payload: ZpodNetworkCreate): Promise<ZpodNetworkView> => {
+      const client = getClient()
+      const { data } = await client.post<ZpodNetworkView>(`/zpods/${zpodId}/networks`, payload)
+      return data
+    },
+    [getClient]
+  )
+
+  const removeZpodNetwork = useCallback(
+    async (zpodId: number, name: string): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/zpods/${zpodId}/networks/${encodeURIComponent(name)}`)
+    },
+    [getClient]
+  )
+
+  const setZpodNetworkEnabled = useCallback(
+    async (zpodId: number, name: string, enabled: boolean): Promise<ZpodNetworkView> => {
+      const client = getClient()
+      const action = enabled ? "enable" : "disable"
+      const { data } = await client.put<ZpodNetworkView>(
+        `/zpods/${zpodId}/networks/${encodeURIComponent(name)}/${action}`
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const setZpodNetworkMasquerade = useCallback(
+    async (zpodId: number, name: string, enabled: boolean): Promise<ZpodNetworkView> => {
+      const client = getClient()
+      const { data } = await client.put<ZpodNetworkView>(
+        `/zpods/${zpodId}/networks/${encodeURIComponent(name)}/masquerade`,
+        { enabled }
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const setZpodNetworkRouting = useCallback(
+    async (
+      zpodId: number,
+      name: string,
+      routing: "LOCAL" | "GLOBAL",
+      dryRun: boolean
+    ): Promise<ZpodNetworkRoutingView> => {
+      const client = getClient()
+      const { data } = await client.put<ZpodNetworkRoutingView>(
+        `/zpods/${zpodId}/networks/${encodeURIComponent(name)}/routing`,
+        { routing, dry_run: dryRun }
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const fetchZpodNetworkRoutingRun = useCallback(
+    async (zpodId: number, name: string, flowRunId: string): Promise<ZpodNetworkRoutingRunView> => {
+      const client = getClient()
+      const { data } = await client.get<ZpodNetworkRoutingRunView>(
+        `/zpods/${zpodId}/networks/${encodeURIComponent(name)}/routing/${flowRunId}`
+      )
+      return data
     },
     [getClient]
   )
@@ -616,6 +701,13 @@ export function useApi() {
     fetchZpodDns,
     createZpodDns,
     deleteZpodDns,
+    fetchZpodNetworks,
+    addZpodNetwork,
+    removeZpodNetwork,
+    setZpodNetworkEnabled,
+    setZpodNetworkMasquerade,
+    setZpodNetworkRouting,
+    fetchZpodNetworkRoutingRun,
     fetchZpodMyPermission,
     addZpodPermissionUser,
     removeZpodPermissionUser,
