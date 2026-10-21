@@ -57,7 +57,7 @@ docker compose up -d --build
 React 19 + TypeScript 5.9 + Vite 7 + Tailwind CSS 3 + Zustand 5 + React Router 7 + Radix UI + Axios
 
 ### Key Directories
-- `src/pages/` — Route pages (dashboard, zpods, zpod-detail, components, libraries, profiles, endpoints, factory, settings, login, about)
+- `src/pages/` — Route pages (dashboard, zpods, zpod-detail, components, libraries, profiles, endpoints, factory, users, groups, settings, login, about)
 - `src/components/ui/` — Radix UI wrapper components (shadcn pattern)
 - `src/components/layout/` — App shell: root-layout, sidebar, header, mobile-nav
 - `src/hooks/` — `use-api.ts` (all API methods), `use-polling.ts` (auto-refresh), `use-sort.ts` (table sorting)

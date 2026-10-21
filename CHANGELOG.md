@@ -24,6 +24,16 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+### Added
+
+- **Users page.** Superadmins create users (the API token is shown with a copy button), edit
+  them, reset their token, enable, disable or delete them, and see which groups each one
+  belongs to; other users see and edit their own profile only.
+- **Groups page.** Superadmins create, rename and delete permission groups and manage their
+  members, so zPod and endpoint access can be granted to a team at once.
+- **Endpoint access.** Each endpoint card gets an Access section where superadmins grant or
+  revoke the users and groups who can see and use it.
+
 ## [0.1.0] — 2026-10-04
 
 ### Added

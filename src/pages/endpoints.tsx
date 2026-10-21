@@ -43,6 +43,9 @@ import {
 import { Link } from "react-router"
 import type {
   EndpointFull,
+  EndpointPermissionView,
+  PermissionGroup,
+  User,
   Zpod,
   VsphereInventory,
   NsxInventory,
@@ -51,6 +54,7 @@ import type {
 } from "@/types"
 import { DetailRow } from "@/components/detail-row"
 import { EndpointCreateDialog } from "@/components/endpoint-create-dialog"
+import { EndpointPermissions } from "@/components/endpoint-permissions"
 
 // --- Helpers ---
 
@@ -462,10 +466,21 @@ function EndpointEditDialog({
 // --- Main Page ---
 
 export function EndpointsPage() {
-  const { fetchEndpoints, fetchZpods, deleteEndpoint } = useApi()
+  const {
+    fetchEndpoints,
+    fetchZpods,
+    deleteEndpoint,
+    fetchEndpointPermissions,
+    fetchUsers,
+    fetchPermissionGroups,
+  } = useApi()
   const isSuperadmin = useAuthStore((s) => s.user?.superadmin ?? false)
   const [endpoints, setEndpoints] = useState<EndpointFull[]>([])
   const [zpods, setZpods] = useState<Zpod[]>([])
+  // Access management is superadmin-only, so none of this is fetched otherwise
+  const [permissions, setPermissions] = useState<Record<number, EndpointPermissionView[]>>({})
+  const [allUsers, setAllUsers] = useState<User[]>([])
+  const [allGroups, setAllGroups] = useState<PermissionGroup[]>([])
   const [loading, setLoading] = useState(true)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
@@ -478,19 +493,40 @@ export function EndpointsPage() {
 
   const { sorted } = useSort(endpoints, "name")
 
+  const loadAccess = useCallback(
+    async (eps: EndpointFull[]) => {
+      if (!isSuperadmin) return
+      const entries = await Promise.all(
+        eps.map(async (ep) => [ep.id, await fetchEndpointPermissions(ep.id).catch(() => [])] as const)
+      )
+      setPermissions(Object.fromEntries(entries))
+      fetchUsers().then(setAllUsers).catch(() => {})
+      fetchPermissionGroups().then(setAllGroups).catch(() => {})
+    },
+    [isSuperadmin, fetchEndpointPermissions, fetchUsers, fetchPermissionGroups]
+  )
+
   const loadData = useCallback(() => {
-    fetchEndpoints().then(setEndpoints).catch(() => {})
+    fetchEndpoints()
+      .then((eps) => {
+        setEndpoints(eps)
+        return loadAccess(eps)
+      })
+      .catch(() => {})
     fetchZpods().then(setZpods).catch(() => {})
-  }, [fetchEndpoints, fetchZpods])
+  }, [fetchEndpoints, fetchZpods, loadAccess])
 
   useEffect(() => {
     Promise.all([
-      fetchEndpoints().then(setEndpoints),
+      fetchEndpoints().then((eps) => {
+        setEndpoints(eps)
+        return loadAccess(eps)
+      }),
       fetchZpods().then(setZpods),
     ])
       .catch(() => toast.error("Failed to fetch endpoints"))
       .finally(() => setLoading(false))
-  }, [fetchEndpoints, fetchZpods])
+  }, [fetchEndpoints, fetchZpods, loadAccess])
 
   usePolling(loadData)
 
@@ -697,6 +733,18 @@ export function EndpointsPage() {
                     </div>
                   </div>
                 </div>
+                {isSuperadmin && (
+                  <>
+                    <Separator className="my-4" />
+                    <EndpointPermissions
+                      endpoint={ep}
+                      permissions={permissions[ep.id] ?? []}
+                      allUsers={allUsers}
+                      allGroups={allGroups}
+                      onChanged={loadData}
+                    />
+                  </>
+                )}
               </CardContent>
             </Card>
             )

@@ -4,6 +4,12 @@ import { useTargetStore } from "@/stores/target-store"
 import { useAuthStore } from "@/stores/auth-store"
 import type {
   User,
+  UserWithToken,
+  UserCreate,
+  UserUpdate,
+  PermissionGroupCreate,
+  EndpointPermission,
+  EndpointPermissionView,
   Zpod,
   ZpodCreate,
   ZpodDnsEntry,
@@ -306,17 +312,176 @@ export function useApi() {
     [getClient]
   )
 
-  const fetchUsers = useCallback(async (): Promise<User[]> => {
-    const client = getClient()
-    const { data } = await client.get<User[]>("/users")
-    return data
-  }, [getClient])
+  // `all` includes disabled users
+  const fetchUsers = useCallback(
+    async (all = false): Promise<User[]> => {
+      const client = getClient()
+      const { data } = await client.get<User[]>("/users", { params: all ? { all } : undefined })
+      return data
+    },
+    [getClient]
+  )
+
+  const createUser = useCallback(
+    async (payload: UserCreate): Promise<UserWithToken> => {
+      const client = getClient()
+      const { data } = await client.post<UserWithToken>("/users", payload)
+      return data
+    },
+    [getClient]
+  )
+
+  const updateUser = useCallback(
+    async (id: number, payload: UserUpdate): Promise<User> => {
+      const client = getClient()
+      const { data } = await client.patch<User>(`/users/${id}`, payload)
+      return data
+    },
+    [getClient]
+  )
+
+  const deleteUser = useCallback(
+    async (id: number): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/users/${id}/delete`)
+    },
+    [getClient]
+  )
+
+  const enableUser = useCallback(
+    async (id: number): Promise<void> => {
+      const client = getClient()
+      await client.patch(`/users/${id}/enable`)
+    },
+    [getClient]
+  )
+
+  const disableUser = useCallback(
+    async (id: number): Promise<void> => {
+      const client = getClient()
+      await client.patch(`/users/${id}/disable`)
+    },
+    [getClient]
+  )
+
+  const resetUserApiToken = useCallback(
+    async (id: number): Promise<UserWithToken> => {
+      const client = getClient()
+      const { data } = await client.patch<UserWithToken>(`/users/${id}/reset_api_token`)
+      return data
+    },
+    [getClient]
+  )
 
   const fetchPermissionGroups = useCallback(async (): Promise<PermissionGroup[]> => {
     const client = getClient()
     const { data } = await client.get<PermissionGroup[]>("/permission_groups")
     return data
   }, [getClient])
+
+  const createPermissionGroup = useCallback(
+    async (payload: PermissionGroupCreate): Promise<PermissionGroup> => {
+      const client = getClient()
+      const { data } = await client.post<PermissionGroup>("/permission_groups", payload)
+      return data
+    },
+    [getClient]
+  )
+
+  const renamePermissionGroup = useCallback(
+    async (id: number, payload: PermissionGroupCreate): Promise<void> => {
+      const client = getClient()
+      await client.patch(`/permission_groups/${id}`, payload)
+    },
+    [getClient]
+  )
+
+  const deletePermissionGroup = useCallback(
+    async (id: number): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/permission_groups/${id}`)
+    },
+    [getClient]
+  )
+
+  const addPermissionGroupUser = useCallback(
+    async (groupId: number, userId: number): Promise<void> => {
+      const client = getClient()
+      await client.post(`/permission_groups/${groupId}/users`, { user_id: userId })
+    },
+    [getClient]
+  )
+
+  const removePermissionGroupUser = useCallback(
+    async (groupId: number, userId: number): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/permission_groups/${groupId}/users/${userId}`)
+    },
+    [getClient]
+  )
+
+  const fetchEndpointPermissions = useCallback(
+    async (endpointId: number): Promise<EndpointPermissionView[]> => {
+      const client = getClient()
+      const { data } = await client.get<EndpointPermissionView[]>(
+        `/endpoints/${endpointId}/permissions`
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const addEndpointPermissionUser = useCallback(
+    async (
+      endpointId: number,
+      permission: EndpointPermission,
+      payload: ZpodPermissionUserAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.post(`/endpoints/${endpointId}/permissions/${permission}/users`, payload)
+    },
+    [getClient]
+  )
+
+  const removeEndpointPermissionUser = useCallback(
+    async (
+      endpointId: number,
+      permission: EndpointPermission,
+      payload: ZpodPermissionUserAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/endpoints/${endpointId}/permissions/${permission}/users`, {
+        data: payload,
+      })
+    },
+    [getClient]
+  )
+
+  const addEndpointPermissionGroup = useCallback(
+    async (
+      endpointId: number,
+      permission: EndpointPermission,
+      payload: ZpodPermissionGroupAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.post(`/endpoints/${endpointId}/permissions/${permission}/groups`, payload)
+    },
+    [getClient]
+  )
+
+  const removeEndpointPermissionGroup = useCallback(
+    async (
+      endpointId: number,
+      permission: EndpointPermission,
+      payload: ZpodPermissionGroupAddRemove
+    ): Promise<void> => {
+      const client = getClient()
+      await client.delete(`/endpoints/${endpointId}/permissions/${permission}/groups`, {
+        data: payload,
+      })
+    },
+    [getClient]
+  )
 
   const fetchZpodMyPermission = useCallback(
     async (zpodId: number): Promise<ZpodPermissionMineView> => {
@@ -424,7 +589,23 @@ export function useApi() {
   return {
     fetchCurrentUser,
     fetchUsers,
+    createUser,
+    updateUser,
+    deleteUser,
+    enableUser,
+    disableUser,
+    resetUserApiToken,
     fetchPermissionGroups,
+    createPermissionGroup,
+    renamePermissionGroup,
+    deletePermissionGroup,
+    addPermissionGroupUser,
+    removePermissionGroupUser,
+    fetchEndpointPermissions,
+    addEndpointPermissionUser,
+    removeEndpointPermissionUser,
+    addEndpointPermissionGroup,
+    removeEndpointPermissionGroup,
     fetchZpods,
     fetchZpod,
     deleteZpod,
