@@ -15,6 +15,28 @@ export interface User {
   status: string
   creation_date: string
   last_connection_date: string | null
+  // Only returned by GET /users, to superadmins or for one's own row
+  api_token?: string | null
+}
+
+export interface UserWithToken extends User {
+  api_token: string
+}
+
+export interface UserCreate {
+  username: string
+  email: string
+  description?: string
+  ssh_key?: string
+  superadmin?: boolean
+}
+
+export interface UserUpdate {
+  email?: string | null
+  description?: string | null
+  ssh_key?: string | null
+  // Ignored by the API unless the caller is a superadmin
+  superadmin?: boolean | null
 }
 
 export const ZpodStatus = {
@@ -262,6 +284,23 @@ export interface PermissionGroup {
   id: number
   name: string
   users: User[]
+}
+
+export interface PermissionGroupCreate {
+  name: string
+}
+
+export const EndpointPermission = {
+  USER: "USER",
+} as const
+
+export type EndpointPermission = (typeof EndpointPermission)[keyof typeof EndpointPermission]
+
+export interface EndpointPermissionView {
+  id: number
+  permission: EndpointPermission
+  users: User[]
+  permission_groups: PermissionGroup[]
 }
 
 export interface ZpodPermissionView {

@@ -12,6 +12,8 @@ import {
   Info,
   ShieldCheck,
   FlaskConical,
+  UserCog,
+  Users,
 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 
@@ -26,6 +28,8 @@ const adminNav = [
   { label: "Components", href: "/components", icon: Puzzle },
   { label: "Endpoints", href: "/endpoints", icon: Box },
   { label: "Factory", href: "/factory", icon: Factory },
+  { label: "Users", href: "/users", icon: UserCog },
+  { label: "Groups", href: "/groups", icon: Users },
   { label: "Settings", href: "/settings", icon: Settings },
 ]
 

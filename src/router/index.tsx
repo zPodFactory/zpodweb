@@ -10,6 +10,8 @@ import { EndpointsPage } from "@/pages/endpoints"
 import { FactoryPage } from "@/pages/factory"
 import { ZpodDetailPage } from "@/pages/zpod-detail"
 import { SettingsPage } from "@/pages/settings"
+import { UsersPage } from "@/pages/users"
+import { GroupsPage } from "@/pages/groups"
 import { AboutPage } from "@/pages/about"
 import { AuthGuard } from "@/components/auth-guard"
 
@@ -34,6 +36,8 @@ export const router = createBrowserRouter([
       { path: "profiles", element: <ProfilesPage /> },
       { path: "endpoints", element: <EndpointsPage /> },
       { path: "factory", element: <FactoryPage /> },
+      { path: "users", element: <UsersPage /> },
+      { path: "groups", element: <GroupsPage /> },
       { path: "settings", element: <SettingsPage /> },
       { path: "about", element: <AboutPage /> },
     ],

@@ -105,3 +105,17 @@ export function generateId(): string {
     return v.toString(16)
   })
 }
+
+/** Extract a readable message from a zpodapi error response (`detail` string or 422 list) */
+export function apiErrorDetail(err: unknown): string | undefined {
+  const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+  if (typeof detail === "string") return detail
+  if (Array.isArray(detail)) {
+    return detail
+      .map((d: { msg?: string; loc?: unknown[] }) =>
+        d.loc ? `${d.loc[d.loc.length - 1]}: ${d.msg}` : d.msg
+      )
+      .join(", ")
+  }
+  return undefined
+}
