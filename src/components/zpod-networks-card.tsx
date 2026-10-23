@@ -72,9 +72,11 @@ interface ZpodNetworksCardProps {
 }
 
 const GROUPS: { kind: keyof NetworkGroupsOpen; label: string }[] = [
-  { kind: "zpod", label: "zPod /26s" },
-  { kind: "zcore", label: "zcore · nested VCF" },
-  { kind: "user", label: "user networks" },
+  // The protected groups are named by their routing, which never changes: GLOBAL for the
+  // zPod's networks, LOCAL for zcore's own.
+  { kind: "zpod", label: "zPod Networks (global)" },
+  { kind: "zcore", label: "zCore Networks (local)" },
+  { kind: "user", label: "User Networks" },
 ]
 const NEEDS_137 = "Needs zcore 13.7 (zboxapi 0.2.0)"
 
@@ -99,7 +101,8 @@ function groupSummary(kind: string, rows: ZpodNetworkView[]): string {
   const status =
     statuses.length === 1 ? `all ${statuses[0]}` : statuses.map((s) => `${byStatus[s]} ${s}`).join(" · ")
   if (kind === "zcore") return `VLAN ${rows.map((n) => n.vlan_id).join(" · ")} · ${status}`
-  if (kind === "zpod") return `mgmt + ${rows.length - 1} routed /26s · ${status}`
+  if (kind === "zpod")
+    return `mgmt + VLAN ${rows.filter((n) => n.vlan_id !== 0).map((n) => n.vlan_id).join(" · ")} · ${status}`
   const global = rows.filter((n) => n.routing === "GLOBAL").length
   const pending = rows.filter((n) => n.routing === "PENDING").length
   return [`${rows.length} networks`, global && `${global} global`, pending && `${pending} pending`, status]
@@ -387,7 +390,7 @@ export function ZpodNetworksCard({
                           className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[11px] font-semibold uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                         >
                           <ChevronRight className={cn("h-3.5 w-3.5 transition-transform motion-reduce:transition-none", open && "rotate-90")} />
-                          <span className={networkKindTextClass(g.kind)}>{g.label}</span>
+                          <span className={cn("normal-case tracking-normal", networkKindTextClass(g.kind))}>{g.label}</span>
                           <Badge variant="outline" className="px-1.5 py-0 text-[10px] normal-case tracking-normal">
                             {g.rows.length}
                           </Badge>

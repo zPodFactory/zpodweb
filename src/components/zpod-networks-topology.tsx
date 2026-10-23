@@ -10,7 +10,7 @@ import {
   type TopologyPath,
   type Verdict,
 } from "@/lib/zpod-topology"
-import { sampleHost } from "@/lib/network-utils"
+import { cidrPrefix, cidrToGateway, sampleHost } from "@/lib/network-utils"
 import type { ZpodNetworkView } from "@/types"
 
 interface ZpodNetworksTopologyProps {
@@ -48,9 +48,9 @@ const VERDICT_COLOR: Record<Verdict, string> = { ok: C.green, fail: C.red, wait:
 const VERDICT_LABEL: Record<Verdict, string> = { ok: "WORKS", fail: "BLOCKED", wait: "PENDING" }
 const MODE_COLOR = { down: C.down, global: C.peach, pending: C.yellow, masquerade: C.green, local: C.blue }
 const GROUPS: { kind: ZpodNetworkView["kind"]; label: string; color: string }[] = [
-  { kind: "zcore", label: "zcore · nested VCF", color: C.amber },
-  { kind: "zpod", label: "zPod /26s", color: C.lavender },
-  { kind: "user", label: "user networks", color: C.teal },
+  { kind: "zcore", label: "zCore Networks (local)", color: C.amber },
+  { kind: "zpod", label: "zPod Networks (global)", color: C.lavender },
+  { kind: "user", label: "User Networks", color: C.teal },
 ]
 
 const T = "fill-muted-foreground font-mono text-[10.5px]"
@@ -189,6 +189,12 @@ export function ZpodNetworksTopology(props: ZpodNetworksTopologyProps) {
             <line x1={90} y1={330} x2={230} y2={80} />
             <line x1={L.eth0X} y1={80} x2={L.eth0X} y2={L.trunkY} />
           </g>
+          {/* the T1's address on the zPod segment: eth0's gateway, so it sits above eth0's own */}
+          {mgmtCidr && (
+            <text x={440} y={124} className={T}>
+              {cidrToGateway(mgmtCidr)}/{cidrPrefix(mgmtCidr)}
+            </text>
+          )}
 
           <text x={530} y={64} className={TS}>
             T1 static routes → zcore {zcoreIp}
@@ -257,7 +263,7 @@ export function ZpodNetworksTopology(props: ZpodNetworksTopologyProps) {
             zcore.{props.zpodDomain}
           </text>
           <text x={zR - 14} y={271} textAnchor="end" className={T}>
-            network · dns · nfs · zboxapi
+            zboxapi · (network, storage &amp; core services)
           </text>
           <line
             x1={Math.min(L.allX0 - 40, 560)}
@@ -289,7 +295,7 @@ export function ZpodNetworksTopology(props: ZpodNetworksTopologyProps) {
                   <line x1={a} y1={425} x2={b} y2={425} />
                   <line x1={a} y1={420} x2={a} y2={425} />
                   <line x1={b} y1={420} x2={b} y2={425} />
-                  <text x={(a + b) / 2} y={440} textAnchor="middle" stroke="none" fill={g.color} className="text-[10.5px] font-semibold uppercase tracking-wider">
+                  <text x={(a + b) / 2} y={440} textAnchor="middle" stroke="none" fill={g.color} className="text-[11px] font-semibold">
                     {g.label}
                   </text>
                 </g>
@@ -367,6 +373,8 @@ export function ZpodNetworksTopology(props: ZpodNetworksTopologyProps) {
           <Box x={230} y={80} w={110} title="NSX T0" sub={props.t0Name || "T0"} stroke="#3b82f6" titleColor="#93c5fd" />
           <Box x={90} y={330} w={160} title="Your network" sub="fabric · laptops, CI" stroke="hsl(var(--muted-foreground))" />
           <Box x={L.eth0X} y={80} w={160} title="NSX T1" sub={props.t1Name} stroke="#a855f7" titleColor="#d8b4fe" />
+          {/* its interface on the zPod segment, on the box's bottom edge */}
+          <circle cx={L.eth0X} cy={L.t1PortY} r={7} className="fill-card stroke-muted-foreground" strokeWidth={2} />
           {sel && (
             <g transform={`translate(${L.vmX},${L.portY})`}>
               <rect x={-65} y={-32} width={130} height={64} className="fill-card" stroke={C.blue} strokeWidth={1.5} strokeDasharray="5 3" />

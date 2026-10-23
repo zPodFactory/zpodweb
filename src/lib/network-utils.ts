@@ -50,7 +50,7 @@ export interface ParsedGateway {
   prefix: number
   firstHost: string
   lastHost: string
-  hosts: number // usable addresses besides the gateway
+  hosts: number // firstHost to lastHost, the gateway included
 }
 
 /** Parse a gateway written like zpodapi wants it: a host address with its prefix,
@@ -78,7 +78,7 @@ export function parseGateway(value: string): { ok: true; gw: ParsedGateway } | {
       prefix,
       firstHost: intToIp(net + 1),
       lastHost: intToIp(broadcast - 1),
-      hosts: broadcast - net - 2,
+      hosts: broadcast - net - 1,
     },
   }
 }

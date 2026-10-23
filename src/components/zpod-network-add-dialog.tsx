@@ -124,8 +124,9 @@ export function ZpodNetworkAddDialog({
             <DialogDescription>Creates a VLAN interface with its own subnet on zcore.</DialogDescription>
           </DialogHeader>
 
+          {/* content-start: the taller help text under VLAN ID must not stretch the Name rows */}
           <div className="grid grid-cols-[1fr_1.6fr] gap-3">
-            <div className="grid gap-1.5">
+            <div className="grid content-start gap-1.5">
               <Label htmlFor="net-vlan">VLAN ID</Label>
               <Input
                 id="net-vlan"
@@ -140,7 +141,7 @@ export function ZpodNetworkAddDialog({
                 {show("vlan", vlanError) ?? "1–4094, not 10/20/30/64/128/192"}
               </p>
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid content-start gap-1.5">
               <Label htmlFor="net-name">Name</Label>
               <Input
                 id="net-name"
@@ -180,7 +181,8 @@ export function ZpodNetworkAddDialog({
               <dd className="font-mono">{vlanError ? "eth1.?" : `eth1.${parseInt(vlan, 10)}`} on zcore</dd>
               <dt className="text-muted-foreground">Usable hosts</dt>
               <dd className="font-mono">
-                {parsed.gw.firstHost} – {parsed.gw.lastHost} ({parsed.gw.hosts} besides the gateway)
+                {parsed.gw.firstHost} – {parsed.gw.lastHost}{" "}
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">({parsed.gw.hosts} IPs)</span>
               </dd>
               <dt className="text-muted-foreground">Overlap</dt>
               <dd className={cn("font-mono", overlap ? "text-destructive" : "text-[#a6e3a1]")}>
@@ -209,7 +211,7 @@ export function ZpodNetworkAddDialog({
               />
             </div>
           ) : (
-            <div className="flex items-start gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+            <div className="flex items-start gap-2 rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span>
                 Masquerade is not available: this zPod runs zcore {zcoreVersion || "older than 13.7"}, and

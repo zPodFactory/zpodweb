@@ -35,15 +35,18 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
   revoke the users and groups who can see and use it.
 - **zPod networks on the zPod detail page**, the web side of `zcli zpod network` (zpodapi with
   user networks). The Networks card, now full width, lists every network on zcore with its live
-  status, grouped by kind (the zPod's /26s, zcore's own VLANs, user networks) in groups you can
-  fold, remembered between visits. A maintainer adds a VLAN network (the dialog derives the
-  subnet from the gateway and catches reserved VLANs, duplicates and overlaps before sending),
-  enables or disables it, turns masquerade on or off, and removes it; a superadmin advertises
-  it to the NSX fabric or withdraws it, optionally as a dry run of the checks, and follows the
-  routing run to its verdict, with the failing check shown when it fails.
-- **A Topology tab in the Networks card** that draws zcore and everything upstream of it, and
-  for a picked network animates the path to the internet, from the fabric and to the
-  management network, saying why each one works or is blocked. The tab, network and path are
+  status, grouped by kind (zPod networks, routed globally; zCore networks, local; user
+  networks) in groups you can fold, remembered between visits. A maintainer adds a VLAN network
+  (the dialog derives the subnet from the gateway, shows the usable range and how many IPs it
+  holds, and catches reserved VLANs, duplicates and overlaps before sending), enables or
+  disables it, turns masquerade on or off, and removes it; a superadmin advertises it to the
+  NSX fabric or withdraws it, optionally as a dry run of the checks, and follows the routing
+  run to its verdict, with the failing check shown when it fails. After a dry run passes,
+  "Advertise for real" starts the real run at once.
+- **A Topology tab in the Networks card** that draws zcore and everything upstream of it,
+  with the T1's interface and address on the zPod segment, and for a picked network animates
+  the path to the internet, from the fabric and to the management network, saying why each
+  one works or is blocked. The tab, network and path are
   in the URL, so a link opens the same view.
 
 ### Changed

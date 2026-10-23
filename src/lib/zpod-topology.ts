@@ -4,6 +4,7 @@
  *  only a global route lets the fabric in, zcore routes between all its networks. */
 
 import type { ZpodNetworkView } from "@/types"
+import { cidrToGateway } from "@/lib/network-utils"
 
 export type TopologyPath = "internet" | "fabric" | "zpod"
 export type Verdict = "ok" | "fail" | "wait"
@@ -25,7 +26,7 @@ export function reachability(
   if (path === "zpod") {
     return {
       verdict: "ok",
-      why: `zcore is the gateway of both: ${n.cidr} reaches ${ctx.mgmtCidr} through eth1.${n.vlan_id} and eth0, no NSX involved.`,
+      why: `zcore is the gateway of both: ${n.cidr} reaches ${ctx.mgmtCidr} (the T1's ${cidrToGateway(ctx.mgmtCidr)} among its hosts) through eth1.${n.vlan_id} and eth0, no NSX routing involved.`,
     }
   }
   if (path === "internet") {
@@ -61,6 +62,7 @@ export const L = {
   fabric: [90, 330] as const,
   eth0X: 430,
   eth0Y: 260,
+  t1PortY: 106, // the T1's interface on the zPod segment, on its box's bottom edge
   trunkY: 160,
   eth1X: 600,
   eth1TrunkY: 290,
@@ -74,7 +76,7 @@ export const L = {
   vmX: 1010,
   // all networks: one port every 100 units from here
   allX0: 520,
-  allDx: 100,
+  allDx: 120, // an 18-character gateway (192.168.200.254/22) is ~115px at 10.5px mono
 }
 
 /** The packet's polyline. The example VM reaches zcore the way frames do: up its
@@ -103,7 +105,8 @@ export function routePoints(
     const f: [number, number][] = [[90, 330], [230, 80], [E, 80], [E, L.trunkY], [E, L.eth0Y], [E, L.portY], ...[...up].reverse()]
     return verdict === "ok" ? { pts: f } : { pts: [[90, 330], [230, 80], [304, 80]], blocked: [L.zpodLeft, 80] }
   }
-  return { pts: [...up, [E, L.portY], [E, L.eth0Y]] }
+  // out of eth0 onto the zPod segment, and no further: the T1 above it is not on the way
+  return { pts: [...up, [E, L.portY], [E, L.eth0Y], [E, L.trunkY]] }
 }
 
 export function pointsToPath(pts: [number, number][]): string {

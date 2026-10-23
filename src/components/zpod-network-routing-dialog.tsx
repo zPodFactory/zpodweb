@@ -66,8 +66,13 @@ export function ZpodNetworkRoutingDialog({
   const [seen, setSeen] = useState<string[]>([])
   const followUpDone = useRef(false)
 
+  // Reset only when the dialog opens. `run` follows the network's PENDING state and goes
+  // back to null when a run ends; resetting on that would drop the verdict on screen.
+  const runAtOpen = useRef(run)
+  runAtOpen.current = run
   useEffect(() => {
     if (!open) return
+    const run = runAtOpen.current
     setDryRun(false)
     setMasqueradeAfter(masqueradeSupported)
     setStarting(false)
@@ -76,7 +81,7 @@ export function ZpodNetworkRoutingDialog({
     setState(null)
     setSeen([])
     followUpDone.current = false
-  }, [open, run, masqueradeSupported])
+  }, [open, masqueradeSupported])
 
   // Follow the run until it reaches a final state. Closing the dialog leaves it going.
   useEffect(() => {
@@ -124,11 +129,13 @@ export function ZpodNetworkRoutingDialog({
     }
   }, [open, current, zpodId, network.name, fetchZpodNetworkRoutingRun, setZpodNetworkMasquerade, onChanged])
 
-  const start = async () => {
+  // `asDryRun` overrides the checkbox: "Advertise for real" after a passed dry run launches
+  // the real flow straight away instead of going back to the confirmation step.
+  const start = async (asDryRun: boolean = advertise && dryRun) => {
     setStarting(true)
     setError(null)
     try {
-      const res = await setZpodNetworkRouting(zpodId, network.name, target, advertise && dryRun)
+      const res = await setZpodNetworkRouting(zpodId, network.name, target, asDryRun)
       onChanged()
       if (!res.flow_run_id) {
         toast.info(`${network.name} is already ${target}`, { description: "Nothing to do." })
@@ -138,10 +145,12 @@ export function ZpodNetworkRoutingDialog({
       const started: RoutingRun = {
         flowRunId: res.flow_run_id,
         target,
-        dryRun: advertise && dryRun,
+        dryRun: asDryRun,
         masqueradeAfter: !advertise && masqueradeSupported && masqueradeAfter,
       }
       onRunStarted(network.name, started)
+      setState(null)
+      setSeen([])
       setCurrent(started)
     } catch (err) {
       setError(apiErrorMessage(err, `Could not change the routing of ${network.name}`))
@@ -213,7 +222,7 @@ export function ZpodNetworkRoutingDialog({
               <Button variant="outline" onClick={() => onOpenChange(false)} disabled={starting}>
                 Cancel
               </Button>
-              <Button onClick={start} disabled={starting}>
+              <Button onClick={() => start()} disabled={starting}>
                 {starting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {advertise ? (dryRun ? "Run checks" : "Advertise") : "Withdraw"}
               </Button>
@@ -296,14 +305,8 @@ export function ZpodNetworkRoutingDialog({
                   <Button variant="outline" onClick={() => onOpenChange(false)}>
                     Close
                   </Button>
-                  <Button
-                    onClick={() => {
-                      setCurrent(null)
-                      setState(null)
-                      setSeen([])
-                      setDryRun(false)
-                    }}
-                  >
+                  <Button disabled={starting} onClick={() => start(false)}>
+                    {starting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Advertise for real
                   </Button>
                 </>
