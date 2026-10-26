@@ -63,6 +63,7 @@ import type {
   Zpod,
   EndpointFull,
   ZpodNetwork,
+  ZpodNetworkView,
   ZpodComponentView,
   ComponentFull,
   ProfileItemCreate,
@@ -77,48 +78,20 @@ import { ZpodPermission as ZpodPermissionEnum } from "@/types"
 import { AddComponentDialog } from "@/components/add-component-dialog"
 import { ElapsedTime } from "@/components/elapsed-time"
 import { flattenProfileItems } from "@/lib/profile-utils"
-import { copyToClipboard, formatDateTime } from "@/lib/utils"
+import { cn, copyToClipboard, formatDateTime } from "@/lib/utils"
 import { extractComponentType, extractComponentVersion, getComponentHex, componentStyles } from "@/lib/component-colors"
 import { groupDeployedByUid } from "@/lib/build-progress"
-
-// --- CIDR helpers ---
-
-function cidrToNetworkIp(cidr: string): number {
-  const [ipStr, prefixStr] = cidr.split("/")
-  const prefixLen = parseInt(prefixStr, 10)
-  if (isNaN(prefixLen)) return 0
-  const parts = ipStr.split(".").map(Number)
-  const ip = ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
-  const mask = prefixLen === 0 ? 0 : (~0 << (32 - prefixLen)) >>> 0
-  return (ip & mask) >>> 0
-}
-
-function ipToString(ip: number): string {
-  return [
-    (ip >>> 24) & 0xff,
-    (ip >>> 16) & 0xff,
-    (ip >>> 8) & 0xff,
-    ip & 0xff,
-  ].join(".")
-}
-
-function cidrToGateway(cidr: string): string {
-  return ipToString((cidrToNetworkIp(cidr) | 1) >>> 0)
-}
-
-/** Network address + 2 = zcore IP (DNS server for all networks) */
-function cidrToZcoreIp(cidr: string): string {
-  return ipToString((cidrToNetworkIp(cidr) | 2) >>> 0)
-}
-
-/** VLAN ID: last octet of the network address. 0 = untagged. */
-function cidrToVlanId(cidr: string): number {
-  return cidrToNetworkIp(cidr) & 0xff
-}
-
-function cidrPrefix(cidr: string): string {
-  return cidr.split("/")[1] ?? "0"
-}
+import {
+  cidrPrefix,
+  cidrToGateway,
+  cidrToVlanId,
+  cidrToZcoreIp,
+  hasNetworksApi,
+  managementNetwork,
+  zcoreNetworkFeatures,
+} from "@/lib/network-utils"
+import { ZpodNetworksCard } from "@/components/zpod-networks-card"
+import { useAuthStore } from "@/stores/auth-store"
 
 // --- Detail row ---
 
@@ -194,20 +167,31 @@ function componentTypeLabel(uid: string): string {
 
 function NetworkTopology({
   networks,
+  views,
   t0Name,
   components,
   zpodName,
   endpointNetwork,
 }: {
   networks: ZpodNetwork[]
+  views: ZpodNetworkView[] | null
   t0Name: string
   components: ZpodComponentView[]
   zpodName: string
   endpointNetwork: EndpointFull["endpoints"]["network"] | null
 }) {
-  const prefix = networks.length > 0 ? cidrPrefix(networks[0].cidr) : "26"
-  const firstNet = networks.length > 0 ? networks[0] : null
+  const firstNet = (views ? managementNetwork(views) : networks[0]) ?? null
+  const prefix = firstNet ? cidrPrefix(firstNet.cidr) : "26"
   const restNets = networks.slice(1)
+  // T1 static routes to zcore: the routed /26s, plus the user networks advertised (or being advertised)
+  const staticRoutes: { cidr: string; user?: ZpodNetworkView }[] = views
+    ? [
+        ...views.filter((n) => n.kind === "zpod" && n.vlan_id !== 0).map((n) => ({ cidr: n.cidr })),
+        ...views
+          .filter((n) => n.kind === "user" && (n.routing === "GLOBAL" || n.routing === "PENDING"))
+          .map((n) => ({ cidr: n.cidr, user: n })),
+      ]
+    : restNets.map((n) => ({ cidr: n.cidr }))
   const zcoreIp = firstNet ? cidrToZcoreIp(firstNet.cidr) : "—"
   const t1InterfaceIp = firstNet
     ? `${cidrToGateway(firstNet.cidr)}/${prefix}`
@@ -297,7 +281,7 @@ function NetworkTopology({
               <span className="text-muted-foreground font-sans">(zPod Management Network)</span>
             </div>
           </div>
-          {restNets.length > 0 && (
+          {staticRoutes.length > 0 && (
             <>
               <div className="flex items-stretch gap-4 ml-[89px]">
                 <div className="w-0.5 bg-purple-500/25 min-h-[12px]" />
@@ -307,14 +291,31 @@ function NetworkTopology({
                 <div className="w-0.5 bg-purple-500/20 min-h-[20px]" />
                 <div className="text-xs text-muted-foreground space-y-0.5 py-1">
                   <div className="font-medium">NSX-T1 Static routes to <span className="text-amber-400/80">zcore</span> (eth0):</div>
-                  {restNets.map((net) => (
-                    <div key={net.id} className="font-mono ml-2">
-                      <span className="text-foreground/80">{net.cidr}</span>
-                      {" → "}
-                      <span className="text-foreground/80">{zcoreIp}</span>
-                      <span className="font-sans text-amber-400/80"> (zcore)</span>
-                    </div>
-                  ))}
+                  {staticRoutes.map(({ cidr, user }) =>
+                    user ? (
+                      <div
+                        key={cidr}
+                        className={cn(
+                          "font-mono ml-2 flex items-center gap-1",
+                          user.routing === "GLOBAL" ? "text-[#fab387]" : "text-[#f9e2af]"
+                        )}
+                      >
+                        {user.routing === "PENDING" && <Loader2 className="h-3 w-3 animate-spin" />}
+                        <span>{cidr}</span>
+                        {user.routing === "GLOBAL" && <span>{" → "}{zcoreIp}</span>}
+                        <span className="font-sans">
+                          {" "}({user.name}, {user.routing === "GLOBAL" ? "user" : "routing change running"})
+                        </span>
+                      </div>
+                    ) : (
+                      <div key={cidr} className="font-mono ml-2">
+                        <span className="text-foreground/80">{cidr}</span>
+                        {" → "}
+                        <span className="text-foreground/80">{zcoreIp}</span>
+                        <span className="font-sans text-amber-400/80"> (zcore)</span>
+                      </div>
+                    )
+                  )}
                 </div>
               </div>
             </>
@@ -352,29 +353,33 @@ function NetworkTopology({
                   {zcoreIp}
                 </div>
                 {/* Interface details */}
+                {views ? (
+                  <ZcoreInterfaces views={views} zcoreIp={zcoreIp} />
+                ) : (
                 <div className="mt-1.5 pt-1.5 border-t border-amber-500/20 space-y-0.5 text-left">
-                  {firstNet && (
-                    <div className="text-xs font-mono whitespace-nowrap">
-                      <span className="text-amber-300">eth0</span>
-                      <span className="text-muted-foreground ml-1">
-                        {cidrToZcoreIp(firstNet.cidr)}/{prefix}
-                      </span>
-                      <span className="text-muted-foreground/60 font-sans ml-1">(Untagged)</span>
-                    </div>
-                  )}
-                  {restNets.map((net) => {
-                    const vlan = cidrToVlanId(net.cidr)
-                    return (
-                      <div key={net.id} className="text-xs font-mono whitespace-nowrap">
-                        <span className="text-amber-300">eth1.{vlan}</span>
+                    {firstNet && (
+                      <div className="text-xs font-mono whitespace-nowrap">
+                        <span className="text-amber-300">eth0</span>
                         <span className="text-muted-foreground ml-1">
-                          {cidrToGateway(net.cidr)}/{prefix}
+                          {cidrToZcoreIp(firstNet.cidr)}/{prefix}
                         </span>
-                        <span className="text-muted-foreground/60 font-sans ml-1">(VLAN {vlan})</span>
+                        <span className="text-muted-foreground/60 font-sans ml-1">(Untagged)</span>
                       </div>
-                    )
-                  })}
+                    )}
+                    {restNets.map((net) => {
+                      const vlan = cidrToVlanId(net.cidr)
+                      return (
+                        <div key={net.id} className="text-xs font-mono whitespace-nowrap">
+                          <span className="text-amber-300">eth1.{vlan}</span>
+                          <span className="text-muted-foreground ml-1">
+                            {cidrToGateway(net.cidr)}/{prefix}
+                          </span>
+                          <span className="text-muted-foreground/60 font-sans ml-1">(VLAN {vlan})</span>
+                        </div>
+                      )
+                    })}
                 </div>
+                )}
               </div>
             </div>
 
@@ -416,6 +421,59 @@ function NetworkTopology({
   )
 }
 
+const IF_STATUS_DOT: Record<string, string> = {
+  ACTIVE: "bg-[#a6e3a1]",
+  DISABLED: "bg-[#f2805e]",
+  MISSING: "bg-[#f38ba8]",
+  UNKNOWN: "bg-[#7f849c]",
+}
+
+/** Every interface of zcore, grouped like the Networks table, with its live status. */
+function ZcoreInterfaces({ views, zcoreIp }: { views: ZpodNetworkView[]; zcoreIp: string }) {
+  const groups: { kind: ZpodNetworkView["kind"]; label: string }[] = [
+    { kind: "zpod", label: "zPod" },
+    { kind: "zcore", label: "zcore" },
+    { kind: "user", label: "user" },
+  ]
+  return (
+    <div className="mt-1.5 pt-1.5 border-t border-amber-500/20 grid grid-cols-[auto_max-content_max-content_max-content] items-center gap-x-3 gap-y-0.5 text-left text-xs font-mono">
+      {groups.map((g) => {
+        const rows = views.filter((n) => n.kind === g.kind)
+        if (!rows.length) return null
+        return [
+          <div key={`h-${g.kind}`} className="col-span-4 pt-1 font-sans text-[10px] uppercase tracking-wider text-muted-foreground/70">
+            {g.label}
+          </div>,
+          ...rows.map((n) => {
+            const label =
+              n.vlan_id === 0
+                ? { text: "Untagged", cls: "text-muted-foreground/60" }
+                : n.kind !== "user"
+                  ? { text: `VLAN ${n.vlan_id}`, cls: "text-muted-foreground/60" }
+                  : n.status !== "ACTIVE"
+                    ? { text: `VLAN ${n.vlan_id} · down`, cls: "text-[#f2805e]" }
+                    : n.routing === "GLOBAL"
+                      ? { text: `VLAN ${n.vlan_id} · global`, cls: "text-[#fab387]" }
+                      : n.routing === "PENDING"
+                        ? { text: `VLAN ${n.vlan_id} · pending`, cls: "text-[#f9e2af]" }
+                        : n.masquerade
+                          ? { text: `VLAN ${n.vlan_id} · masquerade`, cls: "text-[#a6e3a1]" }
+                          : { text: `VLAN ${n.vlan_id}`, cls: "text-muted-foreground/60" }
+            return [
+              <span key={`d-${n.name}`} className={cn("h-1.5 w-1.5 rounded-full", IF_STATUS_DOT[n.status] ?? IF_STATUS_DOT.UNKNOWN)} title={n.status} />,
+              <span key={`i-${n.name}`} className="whitespace-nowrap text-amber-300">{n.vlan_id === 0 ? "eth0" : `eth1.${n.vlan_id}`}</span>,
+              <span key={`g-${n.name}`} className="whitespace-nowrap text-muted-foreground">
+                {n.vlan_id === 0 ? `${zcoreIp}/${n.cidr.split("/")[1]}` : n.gateway}
+              </span>,
+              <span key={`l-${n.name}`} className={cn("whitespace-nowrap font-sans", label.cls)}>{label.text}</span>,
+            ]
+          }),
+        ]
+      })}
+    </div>
+  )
+}
+
 // --- Main page ---
 
 export function ZpodDetailPage() {
@@ -435,12 +493,14 @@ export function ZpodDetailPage() {
     fetchUsers,
     fetchPermissionGroups,
     fetchZpodMyPermission,
+    fetchZpodNetworks,
     addZpodPermissionUser,
     removeZpodPermissionUser,
     addZpodPermissionGroup,
     removeZpodPermissionGroup,
   } = useApi()
 
+  const isSuperadmin = useAuthStore((s) => s.user?.superadmin ?? false)
   const [zpod, setZpod] = useState<Zpod | null>(null)
   const [myPermission, setMyPermission] = useState<ZpodPermission | null>(null)
   const [endpoints, setEndpoints] = useState<EndpointFull[]>([])
@@ -456,6 +516,10 @@ export function ZpodDetailPage() {
 
   // DNS state
   const [dnsEntries, setDnsEntries] = useState<ZpodDnsEntry[]>([])
+
+  // Networks: GET /zpods/{id}/networks (live status from zboxapi), polled with the zPod
+  const [liveNetworks, setLiveNetworks] = useState<ZpodNetworkView[] | null>(null)
+  const [liveNetworksFailed, setLiveNetworksFailed] = useState(false)
   const [showAddDns, setShowAddDns] = useState(false)
   const [dnsHostname, setDnsHostname] = useState("")
   const [dnsIp, setDnsIp] = useState("")
@@ -486,9 +550,24 @@ export function ZpodDetailPage() {
     (c) => extractComponentType(c.component.component_uid) === "zcore" && c.status === "ACTIVE"
   ) ?? false
 
+  // Only on a zpodapi with user networks (its zPod view carries the network kinds)
+  const loadNetworks = useCallback(
+    (z: Zpod) => {
+      if (!hasNetworksApi(z.networks)) return
+      fetchZpodNetworks(z.id)
+        .then((rows) => {
+          setLiveNetworks(rows)
+          setLiveNetworksFailed(false)
+        })
+        .catch(() => setLiveNetworksFailed(true))
+    },
+    [fetchZpodNetworks]
+  )
+
   const loadZpod = useCallback(() => {
     fetchZpod(zpodId).then((z) => {
       setZpod(z)
+      loadNetworks(z)
       // Only fetch DNS when zcore is ACTIVE
       const hasActiveZcore = z.components?.some(
         (c) => extractComponentType(c.component.component_uid) === "zcore" && c.status === "ACTIVE"
@@ -497,7 +576,7 @@ export function ZpodDetailPage() {
         fetchZpodDns(zpodId).then(setDnsEntries).catch(() => {})
       }
     }).catch(() => {})
-  }, [fetchZpod, fetchZpodDns, zpodId])
+  }, [fetchZpod, fetchZpodDns, zpodId, loadNetworks])
 
   useEffect(() => {
     // Fetch myPermission alongside the rest so action buttons don't briefly
@@ -511,6 +590,7 @@ export function ZpodDetailPage() {
     ])
       .then(async ([z, eps, comps, profs, mine]) => {
         setZpod(z)
+        loadNetworks(z)
         setEndpoints(eps)
         setAllComponents(comps)
         setProfiles(profs)
@@ -528,7 +608,7 @@ export function ZpodDetailPage() {
       })
       .catch(() => toast.error("Failed to fetch zpod"))
       .finally(() => setLoading(false))
-  }, [fetchZpod, fetchEndpoints, fetchComponents, fetchProfiles, fetchZpodDns, fetchZpodMyPermission, zpodId])
+  }, [fetchZpod, fetchEndpoints, fetchComponents, fetchProfiles, fetchZpodDns, fetchZpodMyPermission, loadNetworks, zpodId])
 
   // Fetch users & permission groups (used by permission editors). Tolerate
   // failures: a non-superadmin may lack access to one or both endpoints.
@@ -758,6 +838,12 @@ export function ZpodDetailPage() {
 
   // Resolve endpoint details
   const endpointFull = endpoints.find((ep) => ep.id === zpod.endpoint?.id)
+  const zcoreComp = zpod.components?.find(
+    (c) => extractComponentType(c.component.component_uid) === "zcore"
+  )
+  const zcoreVersion = zcoreComp ? extractComponentVersion(zcoreComp.component.component_uid) : ""
+  const networkFeatures = zcoreNetworkFeatures(zcoreVersion)
+  const mgmtNetwork = managementNetwork(zpod.networks ?? [])
 
   // Owner list
   const owners = zpod.permissions
@@ -937,8 +1023,7 @@ export function ZpodDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Basic Info + Networks table side by side */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+      {/* Basic Info */}
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
@@ -952,9 +1037,9 @@ export function ZpodDetailPage() {
             <DetailRow
               label="DNS"
               value={
-                zpod.networks?.length > 0 ? (
+                mgmtNetwork ? (
                   <span className="font-mono">
-                    {cidrToZcoreIp(zpod.networks[0].cidr)}
+                    {cidrToZcoreIp(mgmtNetwork.cidr)}
                     <span className="text-amber-400/80 font-sans ml-1">(zcore)</span>
                   </span>
                 ) : "—"
@@ -1000,60 +1085,22 @@ export function ZpodDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Network className="h-4 w-4" />
-              Networks
-              {zpod.networks?.length > 0 && (
-                <Badge variant="outline" className="ml-1">
-                  {zpod.networks.length}
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {zpod.networks?.length > 0 ? (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>CIDR</TableHead>
-                    <TableHead>Gateway</TableHead>
-                    <TableHead>VLAN</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {zpod.networks.map((net, idx) => {
-                    const vlan = cidrToVlanId(net.cidr)
-                    const isFirst = idx === 0
-                    const router = isFirst ? "NSX-T1" : "zcore"
-                    return (
-                      <TableRow key={net.id}>
-                        <TableCell className="font-mono whitespace-nowrap">{net.cidr}</TableCell>
-                        <TableCell className="font-mono whitespace-nowrap">
-                          {cidrToGateway(net.cidr)}{" "}
-                          <span className={isFirst ? "text-purple-400/80" : "text-amber-400/80"}>
-                            ({router})
-                          </span>
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          {isFirst ? (
-                            <span className="text-muted-foreground">Untagged</span>
-                          ) : (
-                            <span className="font-mono">{vlan}</span>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    )
-                  })}
-                </TableBody>
-              </Table>
-            ) : (
-              <p className="text-sm text-muted-foreground">No networks</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+
+      {/* Networks: table and topology tabs, full width */}
+      <ZpodNetworksCard
+        zpod={zpod}
+        pool={endpointFull?.endpoints.network.networks ?? null}
+        t0Name={t0Name}
+        isMaintainer={isMaintainer}
+        isSuperadmin={isSuperadmin}
+        zcoreActive={zcoreActive}
+        zcoreVersion={zcoreVersion}
+        features={networkFeatures}
+        dnsEntries={dnsEntries}
+        live={liveNetworks}
+        liveFailed={liveNetworksFailed}
+        onRefresh={loadZpod}
+      />
 
       {/* Network Topology Diagram — full width */}
       {zpod.networks?.length > 0 && (
@@ -1067,6 +1114,7 @@ export function ZpodDetailPage() {
           <CardContent>
             <NetworkTopology
               networks={zpod.networks}
+              views={liveNetworks}
               t0Name={t0Name}
               components={zpod.components ?? []}
               zpodName={zpod.name}

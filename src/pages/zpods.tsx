@@ -37,6 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { IconTooltip } from "@/components/icon-tooltip"
 import { Plus, Info, Trash2, Settings2, KeyRound, Search } from "lucide-react"
+import { cidrToVlanId } from "@/lib/network-utils"
 import type { Zpod, ZpodComponentView, ZpodNetwork, Profile, ProfileItem, User } from "@/types"
 import { StatusBadge } from "@/components/status-badge"
 import { isInProgressStatus } from "@/lib/status-colors"
@@ -102,18 +103,17 @@ function parentCidr(networks: ZpodNetwork[]): string {
   return masked
 }
 
-/** Extract VLAN ID from the last octet of the network address */
-function cidrToVlanId(cidr: string): number {
-  const ipStr = cidr.split("/")[0]
-  const parts = ipStr.split(".").map(Number)
-  return parts[3]
+/** The zPod's own /26s: zpodapi with user networks also returns those (kind "user"),
+ *  which belong on the detail page, not in this summary. Older zpodapi has no kind. */
+function zpodSubnets(networks: ZpodNetwork[]): ZpodNetwork[] {
+  return networks.filter((n) => !n.kind || n.kind === "zpod")
 }
 
 function NetworkSubnets({ networks }: { networks: ZpodNetwork[] }) {
   return (
     <div className="ml-4 mt-1 space-y-1 border-l border-muted-foreground/25 pl-2 text-muted-foreground">
       {networks.map((net, i) => {
-        const vlan = cidrToVlanId(net.cidr)
+        const vlan = net.vlan_id ?? cidrToVlanId(net.cidr)
         return (
           <div key={net.id} className="flex items-center gap-1.5">
             <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" />
@@ -139,7 +139,8 @@ function NetworkSubnets({ networks }: { networks: ZpodNetwork[] }) {
   )
 }
 
-function NetworkBlock({ networks }: { networks: ZpodNetwork[] }) {
+function NetworkBlock({ networks: all }: { networks: ZpodNetwork[] }) {
+  const networks = zpodSubnets(all)
   const summary = parentCidr(networks)
   return (
     <div>

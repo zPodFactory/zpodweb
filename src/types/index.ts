@@ -267,9 +267,77 @@ export interface ZpodComponentView {
   status: string
 }
 
+export const ZpodNetworkKind = {
+  ZPOD: "zpod",
+  USER: "user",
+  ZCORE: "zcore",
+} as const
+
+export type ZpodNetworkKind = (typeof ZpodNetworkKind)[keyof typeof ZpodNetworkKind]
+
+export const ZpodNetworkRouting = {
+  LOCAL: "LOCAL",
+  GLOBAL: "GLOBAL",
+  PENDING: "PENDING",
+} as const
+
+export type ZpodNetworkRouting = (typeof ZpodNetworkRouting)[keyof typeof ZpodNetworkRouting]
+
+export const ZpodNetworkStatus = {
+  ACTIVE: "ACTIVE",
+  DISABLED: "DISABLED",
+  MISSING: "MISSING",
+  UNKNOWN: "UNKNOWN",
+} as const
+
+export type ZpodNetworkStatus = (typeof ZpodNetworkStatus)[keyof typeof ZpodNetworkStatus]
+
+/** A network as embedded in the zPod view. The fields after `cidr` come with
+ *  zpodapi's user networks; an older zpodapi sends `id` and `cidr` only. */
 export interface ZpodNetwork {
-  id: number
+  id: number | null
   cidr: string
+  name?: string
+  vlan_id?: number
+  gateway?: string
+  kind?: ZpodNetworkKind
+  masquerade?: boolean
+  routing?: ZpodNetworkRouting
+}
+
+/** GET /zpods/{id}/networks: every network on the box, with its live status. */
+export interface ZpodNetworkView {
+  id: number | null // null for the zcore rows, which exist on the box only
+  name: string
+  cidr: string
+  vlan_id: number
+  gateway: string // with prefix, e.g. "10.42.111.1/24"
+  kind: ZpodNetworkKind
+  masquerade: boolean
+  routing: ZpodNetworkRouting
+  status: ZpodNetworkStatus
+}
+
+export interface ZpodNetworkCreate {
+  name: string
+  vlan: number
+  gateway: string
+  masquerade: boolean
+  routing: Exclude<ZpodNetworkRouting, "PENDING">
+}
+
+export interface ZpodNetworkRoutingView {
+  network: ZpodNetworkView
+  flow_run_id: string | null // null when nothing had to change
+}
+
+/** A routing flow run as zpodengine reports it. `state` is Prefect's state type. */
+export interface ZpodNetworkRoutingRunView {
+  network: ZpodNetworkView
+  flow_run_id: string
+  name: string | null
+  state: string
+  message: string | null // for a failed run, the failing check
 }
 
 export const ZpodPermission = {
