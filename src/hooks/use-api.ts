@@ -22,6 +22,14 @@ import type {
   ZpodNetworkCreate,
   ZpodNetworkRoutingView,
   ZpodNetworkRoutingRunView,
+  ZpodDiskView,
+  ZpodDiskRunView,
+  ZpodStorageView,
+  ZpodStorageOperation,
+  ZpodStorageFolderView,
+  ZpodNfsExportView,
+  ZpodNfsStatus,
+  ZpodNfsCreate,
   PermissionGroup,
   ComponentFull,
   Library,
@@ -36,6 +44,11 @@ import type {
   EndpointCreate,
   EndpointPasswordUpdate,
 } from "@/types"
+
+/** zpodapi's disk routes take the bare name: "sdc", not "/dev/sdc". */
+function diskName(device: string): string {
+  return device.replace(/^\/dev\//, "")
+}
 
 function useApiClient() {
   const { targets, activeTargetId } = useTargetStore()
@@ -55,10 +68,11 @@ function useApiClient() {
     instance.interceptors.response.use(
       (response) => response,
       (error) => {
-        // A 403 on a zPod network route is a refused operation (zboxapi's reserved
-        // VLANs, superadmin-only routing), not an expired session: no logout.
-        const isNetworkRoute = /\/zpods\/[^/]+\/networks(\/|$)/.test(error.config?.url ?? "")
-        if (error.response?.status === 403 && !isNetworkRoute) {
+        // A 403 on a zPod network or storage route is a refused operation (zboxapi's
+        // reserved VLANs, superadmin-only routing, a protected disk, storage or export),
+        // not an expired session: no logout.
+        const isZboxRoute = /\/zpods\/[^/]+\/(networks|disks|storages|nfs)(\/|$)/.test(error.config?.url ?? "")
+        if (error.response?.status === 403 && !isZboxRoute) {
           useAuthStore.getState().logout()
           useTargetStore.getState().clearActiveTarget()
         }
@@ -397,6 +411,189 @@ export function useApi() {
     [getClient]
   )
 
+  // --- storage: disks (vCenter, through a flow run), storages and NFS exports (zboxapi) ---
+
+  const fetchZpodDisks = useCallback(
+    async (zpodId: number): Promise<ZpodDiskView[]> => {
+      const { data } = await getClient().get<ZpodDiskView[]>(`/zpods/${zpodId}/disks`)
+      return data
+    },
+    [getClient]
+  )
+
+  const fetchZpodDiskRun = useCallback(
+    async (zpodId: number, flowRunId: string): Promise<ZpodDiskRunView> => {
+      const { data } = await getClient().get<ZpodDiskRunView>(`/zpods/${zpodId}/disks/runs/${flowRunId}`)
+      return data
+    },
+    [getClient]
+  )
+
+  const addZpodDisk = useCallback(
+    async (zpodId: number, sizeGb: number): Promise<ZpodDiskRunView> => {
+      const { data } = await getClient().post<ZpodDiskRunView>(`/zpods/${zpodId}/disks`, { size_gb: sizeGb })
+      return data
+    },
+    [getClient]
+  )
+
+  const growZpodDisk = useCallback(
+    async (zpodId: number, device: string, sizeGb: number): Promise<ZpodDiskRunView> => {
+      const { data } = await getClient().put<ZpodDiskRunView>(
+        `/zpods/${zpodId}/disks/${encodeURIComponent(diskName(device))}/grow`,
+        { size_gb: sizeGb }
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const removeZpodDisk = useCallback(
+    async (zpodId: number, device: string): Promise<ZpodDiskRunView> => {
+      const { data } = await getClient().delete<ZpodDiskRunView>(
+        `/zpods/${zpodId}/disks/${encodeURIComponent(diskName(device))}`
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const fetchZpodStorages = useCallback(
+    async (zpodId: number): Promise<ZpodStorageView[]> => {
+      const { data } = await getClient().get<ZpodStorageView[]>(`/zpods/${zpodId}/storages`)
+      return data
+    },
+    [getClient]
+  )
+
+  const createZpodStorage = useCallback(
+    async (
+      zpodId: number,
+      payload: { disk: string; lvm: boolean; name?: string | null },
+      dryRun = false
+    ): Promise<ZpodStorageOperation> => {
+      const { data } = await getClient().post<ZpodStorageOperation>(`/zpods/${zpodId}/storages`, payload, {
+        params: { dry_run: dryRun, verbose: true },
+      })
+      return data
+    },
+    [getClient]
+  )
+
+  const growZpodStorage = useCallback(
+    async (zpodId: number, name: string): Promise<ZpodStorageOperation> => {
+      const { data } = await getClient().put<ZpodStorageOperation>(
+        `/zpods/${zpodId}/storages/${encodeURIComponent(name)}/grow`,
+        undefined,
+        { params: { verbose: true } }
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  // Unmounts the storage; its filesystem and data stay on the disk.
+  const deleteZpodStorage = useCallback(
+    async (zpodId: number, name: string): Promise<ZpodStorageOperation> => {
+      const { data } = await getClient().delete<ZpodStorageOperation>(
+        `/zpods/${zpodId}/storages/${encodeURIComponent(name)}`
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const addZpodStorageFolder = useCallback(
+    async (
+      zpodId: number,
+      storage: string,
+      folder: string,
+      payload: { owner?: string | null; mode?: string | null }
+    ): Promise<ZpodStorageFolderView> => {
+      const { data } = await getClient().post<ZpodStorageFolderView>(
+        `/zpods/${zpodId}/storages/${encodeURIComponent(storage)}/folders/${encodeURIComponent(folder)}`,
+        payload
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const setZpodStorageFolder = useCallback(
+    async (
+      zpodId: number,
+      storage: string,
+      folder: string,
+      payload: { owner?: string | null; mode?: string | null; recursive: boolean }
+    ): Promise<ZpodStorageFolderView> => {
+      const { data } = await getClient().put<ZpodStorageFolderView>(
+        `/zpods/${zpodId}/storages/${encodeURIComponent(storage)}/folders/${encodeURIComponent(folder)}`,
+        payload
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  const removeZpodStorageFolder = useCallback(
+    async (zpodId: number, storage: string, folder: string, force: boolean): Promise<void> => {
+      await getClient().delete(
+        `/zpods/${zpodId}/storages/${encodeURIComponent(storage)}/folders/${encodeURIComponent(folder)}`,
+        { params: { force } }
+      )
+    },
+    [getClient]
+  )
+
+  const fetchZpodNfsExports = useCallback(
+    async (zpodId: number): Promise<ZpodNfsExportView[]> => {
+      const { data } = await getClient().get<ZpodNfsExportView[]>(`/zpods/${zpodId}/nfs`)
+      return data
+    },
+    [getClient]
+  )
+
+  const fetchZpodNfsStatus = useCallback(
+    async (zpodId: number): Promise<ZpodNfsStatus> => {
+      const { data } = await getClient().get<ZpodNfsStatus>(`/zpods/${zpodId}/nfs/status`)
+      return data
+    },
+    [getClient]
+  )
+
+  const addZpodNfsExport = useCallback(
+    async (zpodId: number, payload: ZpodNfsCreate): Promise<ZpodNfsExportView> => {
+      const { data } = await getClient().post<ZpodNfsExportView>(`/zpods/${zpodId}/nfs`, payload)
+      return data
+    },
+    [getClient]
+  )
+
+  // Clients and options replaced as a whole
+  const setZpodNfsExport = useCallback(
+    async (
+      zpodId: number,
+      storage: string,
+      folder: string,
+      payload: { clients: string[]; options?: string | null }
+    ): Promise<ZpodNfsExportView> => {
+      const { data } = await getClient().put<ZpodNfsExportView>(
+        `/zpods/${zpodId}/nfs/${encodeURIComponent(storage)}/${encodeURIComponent(folder)}`,
+        payload
+      )
+      return data
+    },
+    [getClient]
+  )
+
+  // Stops exporting the folder; its files stay.
+  const removeZpodNfsExport = useCallback(
+    async (zpodId: number, storage: string, folder: string): Promise<void> => {
+      await getClient().delete(`/zpods/${zpodId}/nfs/${encodeURIComponent(storage)}/${encodeURIComponent(folder)}`)
+    },
+    [getClient]
+  )
+
   // `all` includes disabled users
   const fetchUsers = useCallback(
     async (all = false): Promise<User[]> => {
@@ -708,6 +905,23 @@ export function useApi() {
     setZpodNetworkMasquerade,
     setZpodNetworkRouting,
     fetchZpodNetworkRoutingRun,
+    fetchZpodDisks,
+    fetchZpodDiskRun,
+    addZpodDisk,
+    growZpodDisk,
+    removeZpodDisk,
+    fetchZpodStorages,
+    createZpodStorage,
+    growZpodStorage,
+    deleteZpodStorage,
+    addZpodStorageFolder,
+    setZpodStorageFolder,
+    removeZpodStorageFolder,
+    fetchZpodNfsExports,
+    fetchZpodNfsStatus,
+    addZpodNfsExport,
+    setZpodNfsExport,
+    removeZpodNfsExport,
     fetchZpodMyPermission,
     addZpodPermissionUser,
     removeZpodPermissionUser,

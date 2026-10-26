@@ -95,3 +95,39 @@ export function networkKindTextClass(kind: string): string {
       return "text-[#7f849c]" // zcore: Overlay 1, configured by the image, read-only
   }
 }
+
+/** Who a storage, folder or export belongs to: zcore's own, a protected one, or the user's. */
+/** LVM (partition, VG, LV) stands out; raw (one partition), the common case, stays muted. */
+export function storageLayoutClasses(layout: "raw" | "lvm"): string {
+  return layout === "lvm"
+    ? "bg-[#f5c2e7]/10 text-[#f5c2e7] border-[#f5c2e7]/40" // Pink
+    : "text-muted-foreground"
+}
+
+export function storageKindClasses(kind: "zcore" | "user" | "protected" | "system"): string {
+  switch (kind) {
+    case "zcore":
+      return "bg-[#f9e2af]/10 text-[#f9e2af] border-[#f9e2af]/30" // Yellow
+    case "protected":
+      return "bg-[#fab387]/15 text-[#fab387] border-[#fab387]/40" // Peach
+    case "system":
+      return "bg-[#7f849c]/15 text-[#a6adc8] border-[#7f849c]/30" // Overlay 1
+    default:
+      return "bg-[#94e2d5]/10 text-[#94e2d5] border-[#94e2d5]/30" // user: Teal
+  }
+}
+
+/** A disk flow run's Prefect state. */
+export function runStateClasses(state: string): string {
+  switch (state) {
+    case "COMPLETED":
+      return "bg-[#a6e3a1]/15 text-[#a6e3a1] border-[#a6e3a1]/30"
+    case "FAILED":
+    case "CRASHED":
+    case "CANCELLED":
+      return "bg-[#f38ba8]/15 text-[#f38ba8] border-[#f38ba8]/30"
+    default:
+      // SCHEDULED, PENDING, RUNNING
+      return "bg-[#cba6f7]/15 text-[#cba6f7] border-[#cba6f7]/30"
+  }
+}

@@ -91,6 +91,7 @@ import {
   zcoreNetworkFeatures,
 } from "@/lib/network-utils"
 import { ZpodNetworksCard } from "@/components/zpod-networks-card"
+import { ZpodStorageCard } from "@/components/zpod-storage-card"
 import { useAuthStore } from "@/stores/auth-store"
 
 // --- Detail row ---
@@ -1100,6 +1101,16 @@ export function ZpodDetailPage() {
         live={liveNetworks}
         liveFailed={liveNetworksFailed}
         onRefresh={loadZpod}
+      />
+
+      {/* Storage: zcore's disks, the storages on them and their NFS exports */}
+      <ZpodStorageCard
+        zpodId={zpod.id}
+        zpodName={zpod.name}
+        zcoreFqdn={zcoreComp?.fqdn ?? `zcore.${zpod.domain}`}
+        isMaintainer={isMaintainer}
+        zcoreActive={zcoreActive}
+        networks={(liveNetworks ?? zpod.networks ?? []).map((n) => ({ name: n.name ?? n.cidr, cidr: n.cidr }))}
       />
 
       {/* Network Topology Diagram — full width */}

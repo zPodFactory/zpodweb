@@ -48,6 +48,21 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
   the path to the internet, from the fabric and to the management network, saying why each
   one works or is blocked. The tab, network and path are
   in the URL, so a link opens the same view.
+- **zPod storage on the zPod detail page**, the web side of `zcli zpod disk`, `zcli zpod storage`
+  and `zcli zpod nfs` (zcore with zboxapi 0.2.1). A Storage card under Networks lists the
+  storages with their folders as a tree, each with a usage bar coloured by how full it is (the
+  sizes on hover), its raw or LVM layout, mount, disk and NFS clients, and a pulsing dot on a
+  folder some host has mounted (who, on hover), with its share (`zcore.<domain>:<path>`) one
+  click from the clipboard; above it a line gives the NFS server's state,
+  and below it come the blank and leftover disks and the system exports outside /FILER. A
+  Layout tab draws each of zcore's disks with what is on it, and the space they add up to. A
+  maintainer adds a storage on a new disk or a blank one (following the vCenter run, then
+  zcore's steps), grows it, adds folders, changes their owner and mode, exports them to any
+  host or chosen clients (the zPod's networks offered in one click, with ready-to-copy ESXi
+  and Linux mount commands), deletes a storage either keeping its data on the disk or removing
+  the disk too, after typing its name, and removes a blank or leftover disk. What cannot be
+  changed (STORAGE01, NFS-01, the deploy's disks, system exports) shows disabled with the
+  reason, and an older zcore gets a note instead of failing on click.
 
 ### Changed
 

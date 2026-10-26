@@ -340,6 +340,116 @@ export interface ZpodNetworkRoutingRunView {
   message: string | null // for a failed run, the failing check
 }
 
+// --- zPod storage: zcore's disks, the storages on them and their NFS exports ---
+
+export type ZpodDiskKind = "zpod" | "user" // zpod: the deploy's sda and sdb, never removed
+export type ZpodDiskStatus = "ACTIVE" | "PENDING" | "MISSING" | "UNKNOWN"
+// zboxapi's live classification of a disk
+export type ZpodDiskState = "system" | "protected" | "blank" | "foreign" | "in-use"
+
+export interface ZpodDiskView {
+  id: number | null // null for a disk zcore has that no zPodFactory row describes
+  device: string | null // "/dev/sdc"; null when zcore does not see the row's disk
+  scsi: string | null // "0:2"
+  size_gb: number // GiB
+  state: ZpodDiskState | null
+  storage: string | null
+  kind: ZpodDiskKind
+  status: ZpodDiskStatus
+  disk_uuid: string | null
+}
+
+/** A disk flow run (add, grow, remove). `state` is Prefect's state type. */
+export interface ZpodDiskRunView {
+  disk: ZpodDiskView | null // null once a remove deleted it
+  flow_run_id: string | null
+  name: string | null
+  state: string
+  message: string | null
+}
+
+export interface ZpodStorageFolderView {
+  name: string
+  path: string
+  exported: boolean
+  protected: boolean
+  empty: boolean
+  mode: string // "0777"
+  owner: string // "root:root"
+}
+
+export interface ZpodStorageView {
+  name: string // STORAGEnn
+  mountpoint: string
+  disk: string // "sdc"
+  device: string // "/dev/sdc1", or the LV
+  layout: "raw" | "lvm"
+  vg: string | null
+  lv: string | null
+  fstype: string | null
+  uuid: string | null
+  size_bytes: number
+  used_bytes: number
+  available_bytes: number
+  protected: boolean
+  managed: boolean
+  exports: number
+  folders: ZpodStorageFolderView[]
+  kind: "zcore" | "user" // zcore: STORAGE01, grow only
+}
+
+export interface ZpodStorageStep {
+  step: string
+  target: string
+  detail: string
+  status: "planned" | "done" | "nochange" | "failed" | "skipped"
+  exit_code: number | null
+  command: string | null
+  output: string | null
+}
+
+/** zboxapi's answer to a storage create, grow or delete: the step table. */
+export interface ZpodStorageOperation {
+  operation: string
+  name: string
+  dry_run: boolean
+  storage: ZpodStorageView | null
+  steps: ZpodStorageStep[]
+  rollback: ZpodStorageStep[]
+  changed: boolean | null
+  disk_state: string | null // after a delete: what the disk is now
+}
+
+export interface ZpodNfsExportView {
+  path: string
+  storage: string | null // null for an export outside /FILER/<storage>/<folder>
+  folder: string | null
+  options: string
+  clients: { client: string; options: string }[]
+  owner: string // "system" (/etc/exports) | "user-defined"
+  protected: boolean
+  active: boolean
+  folder_exists: boolean
+}
+
+export interface ZpodNfsStatus {
+  service: string // "active"
+  enabled: boolean
+  versions: string[]
+  threads: number | null
+  exports: number
+  exports_in_files: number
+  inactive_exports: string[]
+  clients: { client: string; path: string | null; version: string }[] // path: NFSv3 only
+}
+
+export interface ZpodNfsCreate {
+  storage: string
+  folder: string
+  clients?: string[] | null // none: * (any host)
+  options?: string | null
+}
+
 export const ZpodPermission = {
   OWNER: "OWNER",
   ADMIN: "ADMIN",
