@@ -24,6 +24,8 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-26
+
 ### Added
 
 - **Users page.** Superadmins create users (the API token is shown with a copy button), edit
