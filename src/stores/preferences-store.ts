@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware"
 
 export type NetworksView = "table" | "topology"
 export type NetworkGroupsOpen = Record<"zpod" | "zcore" | "user", boolean>
+export type StorageView = "storages" | "layout"
 
 interface PreferencesState {
   pollingInterval: number // seconds, 0 = disabled
@@ -12,6 +13,11 @@ interface PreferencesState {
   setNetworksView: (view: NetworksView) => void
   networkGroupsOpen: NetworkGroupsOpen
   setNetworkGroupOpen: (kind: keyof NetworkGroupsOpen, open: boolean) => void
+  // zPod detail, Storage card: the last tab used and the storages whose folders are folded
+  storageView: StorageView
+  setStorageView: (view: StorageView) => void
+  storagesFolded: Record<string, boolean>
+  setStorageFolded: (name: string, folded: boolean) => void
 }
 
 export const usePreferencesStore = create<PreferencesState>()(
@@ -25,6 +31,12 @@ export const usePreferencesStore = create<PreferencesState>()(
       networkGroupsOpen: { zpod: false, zcore: false, user: true },
       setNetworkGroupOpen: (kind, open) =>
         set((s) => ({ networkGroupsOpen: { ...s.networkGroupsOpen, [kind]: open } })),
+      storageView: "storages",
+      setStorageView: (view) => set({ storageView: view }),
+      // Every storage starts open; the folded ones are remembered by name.
+      storagesFolded: {},
+      setStorageFolded: (name, folded) =>
+        set((s) => ({ storagesFolded: { ...s.storagesFolded, [name]: folded } })),
     }),
     { name: "zpodweb-preferences" }
   )

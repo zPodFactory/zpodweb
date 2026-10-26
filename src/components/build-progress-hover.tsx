@@ -2,6 +2,7 @@ import { HoverCardContent } from "@/components/ui/hover-card"
 import { Progress } from "@/components/ui/progress"
 import { StatusBadge } from "@/components/status-badge"
 import { ElapsedTime } from "@/components/elapsed-time"
+import { TreeConnector, TreeTrunk } from "@/components/tree-trunk"
 import { extractComponentType } from "@/lib/component-colors"
 import type { HoverRow } from "@/lib/build-progress"
 import type { ZpodComponentView } from "@/types"
@@ -54,15 +55,7 @@ export function BuildProgressHoverContent({
               className="flex items-center min-h-[28px] text-sm"
             >
               {/* Main trunk vertical with junction dot */}
-              <div className="flex flex-col items-center w-0.5 shrink-0 self-stretch">
-                <div
-                  className={`flex-1 w-full${row.firstInTrunk ? "" : " bg-zinc-600/60"}`}
-                />
-                <span className="h-[5px] w-[5px] rounded-full bg-zinc-400 shrink-0" />
-                <div
-                  className={`flex-1 w-full${row.lastInTrunk ? "" : " bg-zinc-600/60"}`}
-                />
-              </div>
+              <TreeTrunk first={row.firstInTrunk} last={row.lastInTrunk} />
               {row.parallel ? (
                 <>
                   {/* Bridge from trunk to branch (first item) or spacer */}
@@ -85,7 +78,7 @@ export function BuildProgressHoverContent({
                   <span className="w-2.5 border-t-2 border-[#f5c2e7]/70 shrink-0" />
                 </>
               ) : (
-                <span className="w-3.5 border-t border-zinc-500/70 shrink-0" />
+                <TreeConnector />
               )}
               {/* Component name (left) + status badge (right) */}
               <span className={`${textColor} ml-1.5 truncate text-left`}>
