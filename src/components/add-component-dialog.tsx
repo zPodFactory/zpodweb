@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/select"
 import { Cpu, HardDrive, Loader2, MemoryStick, Network } from "lucide-react"
 import { extractComponentType, getComponentHex, componentStyles } from "@/lib/component-colors"
-import type { ComponentFull, ProfileItemCreate } from "@/types"
+import { ComponentPlacementFields, HostIdLabel, type PlacementValue } from "@/components/component-placement-fields"
+import type { ComponentFull, ProfileItemCreate, ZpodNetwork } from "@/types"
 
 /** Extract major version from a component_uid */
 function extractMajorVersion(uid: string): string {
@@ -29,6 +30,8 @@ function extractMajorVersion(uid: string): string {
   const rest = uid.slice(type.length).replace(/^-/, "")
   return rest.match(/^(\d+)/)?.[1] ?? ""
 }
+
+const NO_PLACEMENT: PlacementValue = { nested: null, network: null, vlan_id: null }
 
 interface ComponentGroup {
   label: string
@@ -61,12 +64,16 @@ export function AddComponentDialog({
   open,
   onOpenChange,
   components,
+  networks,
+  hasVcenter,
   saving,
   onSave,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   components: ComponentFull[]
+  networks: ZpodNetwork[]
+  hasVcenter: boolean
   saving: boolean
   onSave: (payload: ProfileItemCreate) => void
 }) {
@@ -77,6 +84,7 @@ export function AddComponentDialog({
   const [vmem, setVmem] = useState("")
   const [vnics, setVnics] = useState("")
   const [vdisks, setVdisks] = useState("")
+  const [placement, setPlacement] = useState<PlacementValue>(NO_PLACEMENT)
 
   const groups = useMemo(() => getComponentGroups(components), [components])
 
@@ -89,6 +97,7 @@ export function AddComponentDialog({
     setVmem("")
     setVnics("")
     setVdisks("")
+    setPlacement(NO_PLACEMENT)
   }, [open])
 
   const selectedType = componentUid ? extractComponentType(componentUid) : ""
@@ -117,12 +126,15 @@ export function AddComponentDialog({
       .map((s) => parseInt(s.trim(), 10))
       .filter((n) => !isNaN(n) && n > 0)
     if (disks.length > 0) payload.vdisks = disks
+    if (placement.nested != null) payload.nested = placement.nested
+    if (placement.network != null) payload.network = placement.network
+    if (placement.vlan_id != null) payload.vlan_id = placement.vlan_id
     onSave(payload)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add Component</DialogTitle>
           <DialogDescription>
@@ -136,7 +148,10 @@ export function AddComponentDialog({
             <Label>Component</Label>
             <Select
               value={componentUid}
-              onValueChange={(v) => setComponentUid(v)}
+              onValueChange={(v) => {
+                if (extractComponentType(v) !== selectedType) setPlacement(NO_PLACEMENT)
+                setComponentUid(v)
+              }}
             >
               <SelectTrigger className="text-xs font-mono">
                 <SelectValue placeholder="Select a component..." />
@@ -165,7 +180,7 @@ export function AddComponentDialog({
               style={{ ...(s?.border ?? {}), ...(s?.bg ?? {}) }}
             >
               <div className="space-y-1.5">
-                <Label className="text-[10px] text-muted-foreground">Version</Label>
+                <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">Version</Label>
                 <Select
                   value={componentUid}
                   onValueChange={(v) => setComponentUid(v)}
@@ -193,7 +208,7 @@ export function AddComponentDialog({
             >
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Hostname</Label>
+                  <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">Hostname</Label>
                   <Input
                     className="h-7 text-xs"
                     value={hostname}
@@ -202,7 +217,12 @@ export function AddComponentDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground">Host ID</Label>
+                  <HostIdLabel
+                    vlanId={placement.vlan_id}
+                    hostId={hostId ? parseInt(hostId, 10) : null}
+                    networks={networks}
+                    network={placement.network}
+                  />
                   <Input
                     className="h-7 text-xs"
                     type="number"
@@ -210,9 +230,10 @@ export function AddComponentDialog({
                     placeholder="auto"
                     onChange={(e) => setHostId(e.target.value)}
                   />
+
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                     <Cpu className="h-2.5 w-2.5" /> vCPU
                   </Label>
                   <Input
@@ -224,7 +245,7 @@ export function AddComponentDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                     <MemoryStick className="h-2.5 w-2.5" /> vMem (GB)
                   </Label>
                   <Input
@@ -236,7 +257,7 @@ export function AddComponentDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                     <Network className="h-2.5 w-2.5" /> vNICs
                   </Label>
                   <Input
@@ -248,7 +269,7 @@ export function AddComponentDialog({
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                     <HardDrive className="h-2.5 w-2.5" /> vDisks (GB, comma-sep)
                   </Label>
                   <Input
@@ -259,6 +280,13 @@ export function AddComponentDialog({
                   />
                 </div>
               </div>
+              <ComponentPlacementFields
+                key={selectedType}
+                componentUid={componentUid}
+                value={placement}
+                canNest={hasVcenter}
+                onChange={(updates) => setPlacement((p) => ({ ...p, ...updates }))}
+              />
             </div>
           )}
         </div>

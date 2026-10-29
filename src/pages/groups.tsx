@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
@@ -31,7 +32,7 @@ import {
   Users as UsersIcon,
   X,
 } from "lucide-react"
-import { apiErrorDetail } from "@/lib/utils"
+import { apiErrorDetail, cn } from "@/lib/utils"
 import type { PermissionGroup, User } from "@/types"
 
 export function GroupsPage() {
@@ -47,6 +48,10 @@ export function GroupsPage() {
   const isSuperadmin = useAuthStore((s) => s.user?.superadmin ?? false)
 
   const [groups, setGroups] = useState<PermissionGroup[]>([])
+  // ?group=<id>, from a group badge on the Users page: scroll to that group and flash it
+  const [searchParams, setSearchParams] = useSearchParams()
+  const focusGroup = searchParams.get("group")
+  const [flashGroup, setFlashGroup] = useState<string | null>(null)
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const { sorted } = useSort(groups, "name")
@@ -169,6 +174,26 @@ export function GroupsPage() {
         .map((u) => ({ id: u.id, label: `${u.username} (${u.email})` }))
     : []
 
+  useEffect(() => {
+    if (loading || !focusGroup) return
+    document.getElementById(`group-${focusGroup}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    setFlashGroup(focusGroup)
+    // Drop the param so a reload or the polling refresh doesn't flash it again
+    setSearchParams({}, { replace: true })
+  }, [loading, focusGroup, setSearchParams])
+
+  // The outline fades after a few seconds, or at the first click anywhere
+  useEffect(() => {
+    if (!flashGroup) return
+    const clear = () => setFlashGroup(null)
+    const timer = setTimeout(clear, 3000)
+    document.addEventListener("pointerdown", clear)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener("pointerdown", clear)
+    }
+  }, [flashGroup])
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -202,7 +227,11 @@ export function GroupsPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-2">
           {sorted.map((group) => (
-            <Card key={group.id}>
+            <Card
+              key={group.id}
+              id={`group-${group.id}`}
+              className={cn("transition-shadow duration-500", String(group.id) === flashGroup && "ring-2 ring-[#89b4fa]/70")}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-base">

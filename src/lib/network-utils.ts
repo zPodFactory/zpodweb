@@ -42,6 +42,33 @@ export function cidrPrefix(cidr: string): string {
   return cidr.split("/")[1] ?? "0"
 }
 
+/** The /24 holding `cidr` (its own start if larger): host_ids count from there (zpodcommon host_address). */
+function hostIdBase(cidr: string): number {
+  const net = cidrToNetworkIp(cidr)
+  return parseInt(cidrPrefix(cidr), 10) > 24 ? (net & 0xffffff00) >>> 0 : net
+}
+
+/** The host_ids that give a host address of `cidr`, its gateway left out (zpodcommon host_id_range). */
+export function hostIdRange(cidr: string, gateway: string): [number, number] {
+  const net = cidrToNetworkIp(cidr)
+  const size = 2 ** (32 - parseInt(cidrPrefix(cidr), 10))
+  let first = net + 1
+  let last = net + size - 2
+  const gw = ipToInt(gateway)
+  if (gw === first) first++
+  if (gw === last) last--
+  const base = hostIdBase(cidr)
+  return [first - base, last - base]
+}
+
+export function hostAddress(cidr: string, hostId: number): string {
+  return intToIp((hostIdBase(cidr) + hostId) >>> 0)
+}
+
+/** zpod_deploy splits every zPod's /24 into mgmt and these VLAN /26s, so their host_id
+ *  ranges are known before the zPod exists (zpodcommon DEPLOY_NETWORKS). */
+export const DEPLOY_VLANS: Record<number, string> = { 0: "mgmt", 64: "vlan64", 128: "vlan128", 192: "vlan192" }
+
 const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/
 
 export interface ParsedGateway {

@@ -195,6 +195,14 @@ export interface Library {
   last_modified_date: string | null
 }
 
+/** Where a nested component is plugged in; every field optional, the zPod's defaults otherwise */
+export interface ComponentNetworkSpec {
+  portgroup?: string | null
+  ip?: string | null
+  gateway?: string | null
+  dns?: string | null
+}
+
 export interface ProfileItem {
   component_uid: string
   host_id: number | null
@@ -203,6 +211,9 @@ export interface ProfileItem {
   vmem: number | null
   vnics: number | null
   vdisks: number[] | null
+  nested?: boolean | null
+  network?: ComponentNetworkSpec | null
+  vlan_id?: number | null
 }
 
 export interface Profile {
@@ -221,6 +232,9 @@ export interface ProfileItemCreate {
   vmem?: number | null
   vnics?: number | null
   vdisks?: number[] | null
+  nested?: boolean | null
+  network?: ComponentNetworkSpec | null
+  vlan_id?: number | null
 }
 
 export interface ProfileCreate {
@@ -263,7 +277,8 @@ export interface ZpodComponentView {
   hostname: string | null
   fqdn: string | null
   password: string | null
-  usernames: { username: string; type: string }[]
+  // type: ssh, ui*, or api-talos (Talos has no SSH or login user: username is null)
+  usernames: { username: string | null; type: string }[]
   status: string
 }
 

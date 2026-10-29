@@ -24,6 +24,41 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+### Added
+
+- Component placement and network (zpodcore 0.9.x): the Add component dialog and each profile
+  item have a folded "Placement & network" section: nested or on the endpoint, a VLAN ID, and
+  for nested components the portgroup, IP/prefix, gateway and DNS. Components with a fixed
+  placement (zcore, vyos, vcsa, esxi, proxmox…) only take a VLAN ID. Without a vCenter in the zPod (or in an
+  earlier step of the profile), Nested is not offered and the network fields stay off. VLAN ID
+  and IP exclude each other, as zpodapi requires. Profile cards show these
+  settings on each component, so a VLAN or endpoint profile reads at a glance.
+- Host ID: right of the label, live as you type: the address the component gets when the host ID
+  fits (green), else the network (the VLAN ID's, or mgmt) and the host IDs it takes
+  (`vlan64 [66–126]`, red when outside). The profile editor knows the deploy networks (mgmt, 64,
+  128, 192) and shows the address as `x.x.x.N`.
+- Network Topology: a component on a VLAN network gets a VLAN badge under its IP (with the
+  network's name for a user network); untagged components stay as they were.
+
+### Fixed
+
+- Profiles: saving a profile in the editor, importing one or copying its JSON keeps the
+  placement and network settings zcli can now set on an item (`nested`, `network`, `vlan_id`,
+  zpodcore 0.9.x), where it used to drop them silently.
+- zPod components: a Talos component shows a copyable `talosctl` command under API Access
+  instead of an empty credentials cell, and images with their own login user (ubuntu, zbox,
+  RHCOS) show it.
+- Adding or removing a component, and creating, updating, importing or deleting a profile, now
+  show zpodapi's reason when it refuses, not only "Failed to …".
+
+### Changed
+
+- zPod detail page: the zPod's details, Permissions and Network Topology now come first, above
+  Networks, Storage and Components, so who can use the zPod and its shape are seen first.
+- Users page: superadmins get an amber shield before their name instead of a badge, and your own
+  row is marked by a blue edge instead of a "You" badge, so the names read cleanly. Rows are
+  tighter, and a user's group badges open that group on the Groups page.
+
 ## [0.2.0] — 2026-10-26
 
 ### Added

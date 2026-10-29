@@ -35,7 +35,8 @@ import {
   Ungroup,
 } from "lucide-react"
 import { extractComponentType, getComponentHex, componentStyles } from "@/lib/component-colors"
-import type { ComponentFull, Profile, ProfileItemCreate } from "@/types"
+import type { ComponentFull, ComponentNetworkSpec, Profile, ProfileItemCreate } from "@/types"
+import { ComponentPlacementFields, HostIdLabel } from "@/components/component-placement-fields"
 
 /** A step in the editor: either a single item or a parallel group */
 interface EditorStep {
@@ -52,6 +53,10 @@ interface EditorItem {
   vmem: number | null
   vnics: number | null
   vdisks: string // stored as comma-separated for editing
+  // Placement and network overrides (zcli --nested, --vlan-id, --portgroup …)
+  nested: boolean | null
+  network: ComponentNetworkSpec | null
+  vlan_id: number | null
 }
 
 let nextId = 1
@@ -69,6 +74,9 @@ function newItem(component_uid: string): EditorItem {
     vmem: null,
     vnics: null,
     vdisks: "",
+    nested: null,
+    network: null,
+    vlan_id: null,
   }
 }
 
@@ -89,6 +97,9 @@ function profileToSteps(
           vmem: item.vmem ?? null,
           vnics: item.vnics ?? null,
           vdisks: item.vdisks?.join(", ") ?? "",
+          nested: item.nested ?? null,
+          network: item.network ?? null,
+          vlan_id: item.vlan_id ?? null,
         })),
       }
     }
@@ -104,6 +115,9 @@ function profileToSteps(
           vmem: entry.vmem ?? null,
           vnics: entry.vnics ?? null,
           vdisks: entry.vdisks?.join(", ") ?? "",
+          nested: entry.nested ?? null,
+          network: entry.network ?? null,
+          vlan_id: entry.vlan_id ?? null,
         },
       ],
     }
@@ -127,6 +141,9 @@ function stepsToProfile(
         .map((s) => parseInt(s.trim(), 10))
         .filter((n) => !isNaN(n) && n > 0)
       if (disks.length > 0) out.vdisks = disks
+      if (item.nested != null) out.nested = item.nested
+      if (item.network != null) out.network = item.network
+      if (item.vlan_id != null) out.vlan_id = item.vlan_id
       return out
     })
     return items.length === 1 ? items[0] : items
@@ -435,7 +452,7 @@ export function ProfileEditorDialog({
                             <div className="grid grid-cols-2 gap-2">
                               {/* Component UID selector */}
                               <div className="col-span-2">
-                                <Label className="text-[10px] text-muted-foreground">Component UID</Label>
+                                <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">Component UID</Label>
                                 <Select
                                   value={item.component_uid}
                                   onValueChange={(v) => updateItem(stepIdx, itemIdx, { component_uid: v })}
@@ -462,7 +479,7 @@ export function ProfileEditorDialog({
 
                               {/* Hostname */}
                               <div>
-                                <Label className="text-[10px] text-muted-foreground">Hostname</Label>
+                                <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">Hostname</Label>
                                 <Input
                                   className="h-7 text-xs"
                                   value={item.hostname ?? ""}
@@ -477,7 +494,7 @@ export function ProfileEditorDialog({
 
                               {/* Host ID */}
                               <div>
-                                <Label className="text-[10px] text-muted-foreground">Host ID</Label>
+                                <HostIdLabel vlanId={item.vlan_id} hostId={item.host_id} network={item.network} />
                                 <Input
                                   className="h-7 text-xs"
                                   type="number"
@@ -493,7 +510,7 @@ export function ProfileEditorDialog({
 
                               {/* vCPU */}
                               <div>
-                                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                                   <Cpu className="h-2.5 w-2.5" /> vCPU
                                 </Label>
                                 <Input
@@ -511,7 +528,7 @@ export function ProfileEditorDialog({
 
                               {/* vMem */}
                               <div>
-                                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                                   <MemoryStick className="h-2.5 w-2.5" /> vMem (GB)
                                 </Label>
                                 <Input
@@ -529,7 +546,7 @@ export function ProfileEditorDialog({
 
                               {/* vNICs */}
                               <div>
-                                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                                   <Network className="h-2.5 w-2.5" /> vNICs
                                 </Label>
                                 <Input
@@ -547,7 +564,7 @@ export function ProfileEditorDialog({
 
                               {/* vDisks */}
                               <div>
-                                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Label className="mb-1 flex items-center gap-1 text-[10px] text-muted-foreground">
                                   <HardDrive className="h-2.5 w-2.5" /> vDisks (GB, comma-sep)
                                 </Label>
                                 <Input
@@ -559,6 +576,20 @@ export function ProfileEditorDialog({
                                   }
                                 />
                               </div>
+
+                              {/* zcore deploys first, on the endpoint, with its own network */}
+                              {!isZcore && (
+                                <div className="col-span-2">
+                                  <ComponentPlacementFields
+                                    componentUid={item.component_uid}
+                                    canNest={steps
+                                      .slice(0, stepIdx)
+                                      .some((st) => st.items.some((it) => extractComponentType(it.component_uid) === "vcsa"))}
+                                    value={item}
+                                    onChange={(updates) => updateItem(stepIdx, itemIdx, updates)}
+                                  />
+                                </div>
+                              )}
                             </div>
                           </div>
                         )
