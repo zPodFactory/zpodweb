@@ -30,6 +30,7 @@ import { ConfirmationDialog } from "@/components/confirmation-dialog"
 import { SortableHead } from "@/components/sortable-head"
 import { IconTooltip } from "@/components/icon-tooltip"
 import { toast } from "sonner"
+import { Link } from "react-router"
 import {
   Ban,
   CheckCircle2,
@@ -38,10 +39,11 @@ import {
   Loader2,
   Pencil,
   Plus,
+  ShieldCheck,
   Trash2,
   Users as UsersIcon,
 } from "lucide-react"
-import { apiErrorDetail, copyToClipboard, formatDateTime } from "@/lib/utils"
+import { apiErrorDetail, cn, copyToClipboard, formatDateTime } from "@/lib/utils"
 import { statusClasses } from "@/lib/status-colors"
 import type { PermissionGroup, User, UserWithToken } from "@/types"
 
@@ -259,7 +261,8 @@ export function UsersPage() {
           {users.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">No users found</p>
           ) : (
-            <Table>
+            // Tighter rows than the default p-4: a user is one line, two with a description
+            <Table className="[&_td]:py-2.5">
               <TableHeader>
                 <TableRow>
                   <SortableHead label="Username" sortKey="username" sort={sort} onToggle={toggleSort} />
@@ -275,23 +278,26 @@ export function UsersPage() {
                   const isSelf = user.id === currentUser?.id
                   const userGroups = groupsOf(user.id)
                   return (
-                    <TableRow key={user.id}>
+                    // Your own row: a blue edge and a light tint instead of a "You" label
+                    <TableRow
+                      key={user.id}
+                      className={cn(isSelf && "bg-[#89b4fa]/[0.06] shadow-[inset_3px_0_0_#89b4fa] hover:bg-[#89b4fa]/10")}
+                    >
                       <TableCell>
                         <div className="flex items-center gap-2">
+                          {/* Shield for superadmins; the empty slot keeps every name aligned */}
+                          {user.superadmin ? (
+                            <IconTooltip label="Superadmin: full access to the factory">
+                              <ShieldCheck className="h-4 w-4 shrink-0 text-amber-400" aria-label="Superadmin" />
+                            </IconTooltip>
+                          ) : (
+                            <span className="w-4 shrink-0" />
+                          )}
                           <span className="font-mono">{user.username}</span>
-                          {user.superadmin && (
-                            <Badge variant="outline" className="text-[10px] border-amber-500/50 text-amber-300">
-                              Superadmin
-                            </Badge>
-                          )}
-                          {isSelf && (
-                            <Badge variant="outline" className="text-[10px] font-normal">
-                              You
-                            </Badge>
-                          )}
+                          {isSelf && <span className="sr-only">(you)</span>}
                         </div>
                         {user.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{user.description}</p>
+                          <p className="ml-6 text-xs text-muted-foreground mt-0.5">{user.description}</p>
                         )}
                       </TableCell>
                       <TableCell className="hidden md:table-cell text-muted-foreground">
@@ -303,10 +309,12 @@ export function UsersPage() {
                             <span className="text-xs text-muted-foreground">—</span>
                           ) : (
                             userGroups.map((g) => (
-                              <Badge key={g.id} variant="secondary" className="gap-1 font-normal">
-                                <UsersIcon className="h-3 w-3" />
-                                {g.name}
-                              </Badge>
+                              <Link key={g.id} to={`/groups?group=${g.id}`}>
+                                <Badge variant="secondary" className="gap-1 font-normal hover:bg-secondary/60">
+                                  <UsersIcon className="h-3 w-3" />
+                                  {g.name}
+                                </Badge>
+                              </Link>
                             ))
                           )}
                         </div>

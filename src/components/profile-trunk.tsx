@@ -1,4 +1,4 @@
-import { Cpu, HardDrive, MemoryStick, Network } from "lucide-react"
+import { Cable, Cpu, Globe, HardDrive, Layers, MemoryStick, Network, Tag } from "lucide-react"
 import { extractComponentType, extractComponentVersion, getComponentHex, componentStyles } from "@/lib/component-colors"
 import type { ProfileItem } from "@/types"
 
@@ -15,6 +15,18 @@ export function ProfileTrunk({ items }: { items: ProfileItem[] }) {
             const typeLabel = extractComponentType(item.component_uid)
             const version = extractComponentVersion(item.component_uid)
             const hasSpecs = item.vcpu != null || item.vmem != null || item.vnics != null || item.vdisks != null
+            // Placement and network overrides (zcli --nested, --portgroup/--ip/--gateway/--dns, --vlan-id)
+            const net = item.network
+            const placement: { icon: typeof Cpu; label: string; value: string }[] = [
+              ...(item.nested != null
+                ? [{ icon: Layers, label: "Placement", value: item.nested ? "nested" : "endpoint" }]
+                : []),
+              ...(item.vlan_id != null ? [{ icon: Tag, label: "VLAN", value: String(item.vlan_id) }] : []),
+              ...(net?.portgroup ? [{ icon: Cable, label: "Portgroup", value: net.portgroup }] : []),
+              ...(net?.ip ? [{ icon: Globe, label: "IP", value: net.ip }] : []),
+              ...(net?.gateway ? [{ icon: Globe, label: "Gateway", value: net.gateway }] : []),
+              ...(net?.dns ? [{ icon: Globe, label: "DNS", value: net.dns }] : []),
+            ]
             return (
               <div key={idx} className="flex flex-col items-center relative">
                 <div className="absolute top-0 h-0.5 pointer-events-none" style={{ left: '-50vw', right: '-50vw', background: 'rgb(113 113 122 / 0.35)' }} />
@@ -65,6 +77,17 @@ export function ProfileTrunk({ items }: { items: ProfileItem[] }) {
                           </span>
                         </div>
                       )}
+                    </div>
+                  )}
+                  {placement.length > 0 && (
+                    <div className="mt-1.5 pt-1.5 border-t space-y-0.5 text-left" style={{ borderColor: `${hex}33` }}>
+                      {placement.map(({ icon: Icon, label, value }) => (
+                        <div key={label} className="flex items-center gap-1.5 text-xs">
+                          <Icon className="h-2.5 w-2.5 shrink-0" style={s.textMuted} />
+                          <span className="text-muted-foreground">{label}</span>
+                          <span className="ml-auto pl-2 font-mono" style={s.text}>{value}</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

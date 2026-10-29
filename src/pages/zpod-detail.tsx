@@ -78,7 +78,7 @@ import { ZpodPermission as ZpodPermissionEnum } from "@/types"
 import { AddComponentDialog } from "@/components/add-component-dialog"
 import { ElapsedTime } from "@/components/elapsed-time"
 import { flattenProfileItems } from "@/lib/profile-utils"
-import { cn, copyToClipboard, formatDateTime } from "@/lib/utils"
+import { apiErrorDetail, cn, copyToClipboard, formatDateTime } from "@/lib/utils"
 import { extractComponentType, extractComponentVersion, getComponentHex, componentStyles } from "@/lib/component-colors"
 import { groupDeployedByUid } from "@/lib/build-progress"
 import {
@@ -86,6 +86,7 @@ import {
   cidrToGateway,
   cidrToVlanId,
   cidrToZcoreIp,
+  cidrsOverlap,
   hasNetworksApi,
   managementNetwork,
   zcoreNetworkFeatures,
@@ -217,6 +218,16 @@ function NetworkTopology({
       }
       return ipToNum(a.ip) - ipToNum(b.ip)
     })
+
+  // The zPod network a component's IP is on, the most specific one: its VLAN is what the
+  // component is plugged into (a VLAN portgroup, or its own tag with --vlan-id)
+  const allNets: ZpodNetwork[] = views ?? networks
+  const networkOf = (ip: string | null) =>
+    ip
+      ? allNets
+          .filter((n) => cidrsOverlap(`${ip}/32`, n.cidr))
+          .sort((a, b) => Number(cidrPrefix(b.cidr)) - Number(cidrPrefix(a.cidr)))[0]
+      : undefined
 
   return (
     <div className="py-6 px-2 overflow-x-auto">
@@ -411,6 +422,21 @@ function NetworkTopology({
                     <div className="text-xs text-muted-foreground font-mono mt-0.5">
                       {comp.ip ?? "no ip"}
                     </div>
+                    {(() => {
+                      // Untagged (the management network) is the default: only a VLAN is called out
+                      const net = networkOf(comp.ip)
+                      const vlan = net ? (net.vlan_id ?? cidrToVlanId(net.cidr)) : 0
+                      if (!net || !vlan) return null
+                      return (
+                        <div
+                          className="mt-1 inline-flex items-center gap-1 rounded border border-[#89b4fa]/40 bg-[#89b4fa]/10 px-1.5 text-[10px] font-mono text-[#89b4fa]"
+                          title={`On zPod network ${net.name ?? net.cidr} (${net.cidr})`}
+                        >
+                          VLAN {vlan}
+                          {net.kind === "user" && net.name && <span className="text-[#89b4fa]/70">· {net.name}</span>}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )
@@ -643,8 +669,8 @@ export function ZpodDetailPage() {
       toast.success(`Component "${payload.component_uid}" added`)
       setShowAddComponent(false)
       loadZpod()
-    } catch {
-      toast.error(`Failed to add component "${payload.component_uid}"`)
+    } catch (err) {
+      toast.error(`Failed to add component "${payload.component_uid}"`, { description: apiErrorDetail(err) })
     } finally {
       setAddingComponent(false)
     }
@@ -661,8 +687,10 @@ export function ZpodDetailPage() {
       toast.success(`Component "${deleteCompTarget.hostname ?? deleteCompTarget.component.component_uid}" removed`)
       setDeleteCompTarget(null)
       loadZpod()
-    } catch {
-      toast.error(`Failed to remove component "${deleteCompTarget.hostname ?? deleteCompTarget.component.component_uid}"`)
+    } catch (err) {
+      toast.error(`Failed to remove component "${deleteCompTarget.hostname ?? deleteCompTarget.component.component_uid}"`, {
+        description: apiErrorDetail(err),
+      })
     } finally {
       setDeletingComponent(false)
     }
@@ -1087,247 +1115,6 @@ export function ZpodDetailPage() {
         </Card>
 
 
-      {/* Networks: table and topology tabs, full width */}
-      <ZpodNetworksCard
-        zpod={zpod}
-        pool={endpointFull?.endpoints.network.networks ?? null}
-        t0Name={t0Name}
-        isMaintainer={isMaintainer}
-        isSuperadmin={isSuperadmin}
-        zcoreActive={zcoreActive}
-        zcoreVersion={zcoreVersion}
-        features={networkFeatures}
-        dnsEntries={dnsEntries}
-        live={liveNetworks}
-        liveFailed={liveNetworksFailed}
-        onRefresh={loadZpod}
-      />
-
-      {/* Storage: zcore's disks, the storages on them and their NFS exports */}
-      <ZpodStorageCard
-        zpodId={zpod.id}
-        zpodName={zpod.name}
-        zcoreFqdn={zcoreComp?.fqdn ?? `zcore.${zpod.domain}`}
-        isMaintainer={isMaintainer}
-        zcoreActive={zcoreActive}
-        networks={(liveNetworks ?? zpod.networks ?? []).map((n) => ({ name: n.name ?? n.cidr, cidr: n.cidr }))}
-      />
-
-      {/* Network Topology Diagram — full width */}
-      {zpod.networks?.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Network className="h-4 w-4" />
-              Network Topology
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <NetworkTopology
-              networks={zpod.networks}
-              views={liveNetworks}
-              t0Name={t0Name}
-              components={zpod.components ?? []}
-              zpodName={zpod.name}
-              endpointNetwork={endpointFull?.endpoints.network ?? null}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Components */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Server className="h-4 w-4" />
-              Components
-              {(zpod.components?.length ?? 0) > 0 && (
-                <Badge variant="outline" className="ml-1">
-                  {zpod.components.length}
-                </Badge>
-              )}
-            </CardTitle>
-            {isMaintainer && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5"
-                onClick={() => setShowAddComponent(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Component
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {(zpod.components?.length ?? 0) > 0 ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Hostname</TableHead>
-                  <TableHead className="hidden md:table-cell">Component</TableHead>
-                  <TableHead className="hidden md:table-cell">IP</TableHead>
-                  <TableHead className="hidden lg:table-cell">Credentials</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[70px]">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {[...zpod.components].sort((a, b) => {
-                  const ipToNum = (ip: string | null) => {
-                    if (!ip) return Number.MAX_SAFE_INTEGER
-                    const parts = ip.split(".").map(Number)
-                    return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
-                  }
-                  return ipToNum(a.ip) - ipToNum(b.ip)
-                }).map((comp) => (
-                  <TableRow key={`${comp.component.id}-${comp.hostname}`}>
-                    <TableCell className="font-mono">
-                      {comp.hostname ?? "—"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <div>{comp.component.component_name}</div>
-                      <div className="text-muted-foreground text-xs">
-                        {comp.component.component_uid}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell font-mono">
-                      {comp.ip ?? "—"}
-                    </TableCell>
-                    <TableCell className="hidden lg:table-cell">
-                      {comp.usernames?.length > 0 ? (() => {
-                        const sshUsers = comp.usernames.filter((u) => u.type === "ssh")
-                        const uiUsers = comp.usernames.filter((u) => u.type !== "ssh")
-                        return (
-                          <div className="space-y-2.5">
-                            {sshUsers.length > 0 && (
-                              <div>
-                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium mb-1">SSH Connection</div>
-                                <div className="space-y-1">
-                                  {sshUsers.map((u) => {
-                                    const sshCmd = `ssh ${u.username}@${comp.fqdn}`
-                                    return (
-                                      <div key={u.username} className="inline-flex items-center gap-1.5 rounded border border-border/50 bg-background/80 px-2.5 py-1">
-                                        <code className="text-xs font-mono text-foreground/90">{sshCmd}</code>
-                                        <IconTooltip label="Copy SSH command">
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-5 w-5 shrink-0"
-                                            onClick={async () => {
-                                              const ok = await copyToClipboard(sshCmd)
-                                              if (ok) toast.success("Copied to clipboard")
-                                              else toast.error("Failed to copy")
-                                            }}
-                                          >
-                                            <Copy className="h-3 w-3" />
-                                          </Button>
-                                        </IconTooltip>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                            {uiUsers.length > 0 && (
-                              <div>
-                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium mb-1">Web Access</div>
-                                <div className="space-y-1">
-                                  {uiUsers.map((u) => {
-                                    const port =
-                                      u.type === "ui-proxmox" ? ":8006" :
-                                      u.type === "ui-proxmox-dm" ? ":8443" :
-                                      u.type === "ui-proxmox-bs" ? ":8007" : ""
-                                    const url = comp.fqdn ? `https://${comp.fqdn}${port}` : null
-                                    return (
-                                      <div key={u.username} className="flex flex-col items-start gap-1">
-                                        {url && (
-                                          <a
-                                            href={url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1.5 rounded border border-border/50 bg-background/80 px-2.5 py-1 text-xs text-primary hover:underline"
-                                          >
-                                            <code className="font-mono">{url}</code>
-                                            <ExternalLink className="h-3 w-3 shrink-0" />
-                                          </a>
-                                        )}
-                                        <div className="inline-flex items-center gap-1.5 rounded border border-border/50 bg-background/80 px-2.5 py-1">
-                                          <code className="text-xs font-mono text-foreground/90">{u.username}</code>
-                                          <IconTooltip label="Copy username">
-                                            <Button
-                                              variant="ghost"
-                                              size="icon"
-                                              className="h-5 w-5 shrink-0"
-                                              onClick={async () => {
-                                                const ok = await copyToClipboard(u.username)
-                                                if (ok) toast.success("Copied to clipboard")
-                                                else toast.error("Failed to copy")
-                                              }}
-                                            >
-                                              <Copy className="h-3 w-3" />
-                                            </Button>
-                                          </IconTooltip>
-                                        </div>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })() : (
-                        "—"
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={comp.status} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1">
-                        {zpod.password && (
-                          <IconTooltip label="Copy password">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7"
-                              onClick={async () => {
-                                const ok = await copyToClipboard(zpod.password!)
-                                if (ok) toast.success("Password copied")
-                                else toast.error("Failed to copy")
-                              }}
-                            >
-                              <KeyRound className="h-3 w-3" />
-                            </Button>
-                          </IconTooltip>
-                        )}
-                        {isMaintainer && extractComponentType(comp.component.component_uid) !== "zcore" && (
-                          <IconTooltip label="Remove component">
-                            <Button
-                              variant="outline"
-                              size="icon"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={() => setDeleteCompTarget(comp)}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </IconTooltip>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-sm text-muted-foreground">No components</p>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Permissions */}
       <Card>
         <CardHeader className="pb-3">
@@ -1467,6 +1254,277 @@ export function ZpodDetailPage() {
               </div>
             )
           })}
+        </CardContent>
+      </Card>
+
+      {/* Network Topology Diagram — full width */}
+      {zpod.networks?.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Network className="h-4 w-4" />
+              Network Topology
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <NetworkTopology
+              networks={zpod.networks}
+              views={liveNetworks}
+              t0Name={t0Name}
+              components={zpod.components ?? []}
+              zpodName={zpod.name}
+              endpointNetwork={endpointFull?.endpoints.network ?? null}
+            />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Networks: table and topology tabs, full width */}
+      <ZpodNetworksCard
+        zpod={zpod}
+        pool={endpointFull?.endpoints.network.networks ?? null}
+        t0Name={t0Name}
+        isMaintainer={isMaintainer}
+        isSuperadmin={isSuperadmin}
+        zcoreActive={zcoreActive}
+        zcoreVersion={zcoreVersion}
+        features={networkFeatures}
+        dnsEntries={dnsEntries}
+        live={liveNetworks}
+        liveFailed={liveNetworksFailed}
+        onRefresh={loadZpod}
+      />
+
+      {/* Storage: zcore's disks, the storages on them and their NFS exports */}
+      <ZpodStorageCard
+        zpodId={zpod.id}
+        zpodName={zpod.name}
+        zcoreFqdn={zcoreComp?.fqdn ?? `zcore.${zpod.domain}`}
+        isMaintainer={isMaintainer}
+        zcoreActive={zcoreActive}
+        networks={(liveNetworks ?? zpod.networks ?? []).map((n) => ({ name: n.name ?? n.cidr, cidr: n.cidr }))}
+      />
+
+      {/* Components */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Server className="h-4 w-4" />
+              Components
+              {(zpod.components?.length ?? 0) > 0 && (
+                <Badge variant="outline" className="ml-1">
+                  {zpod.components.length}
+                </Badge>
+              )}
+            </CardTitle>
+            {isMaintainer && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => setShowAddComponent(true)}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Component
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {(zpod.components?.length ?? 0) > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Hostname</TableHead>
+                  <TableHead className="hidden md:table-cell">Component</TableHead>
+                  <TableHead className="hidden md:table-cell">IP</TableHead>
+                  <TableHead className="hidden lg:table-cell">Credentials</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-[70px]">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {[...zpod.components].sort((a, b) => {
+                  const ipToNum = (ip: string | null) => {
+                    if (!ip) return Number.MAX_SAFE_INTEGER
+                    const parts = ip.split(".").map(Number)
+                    return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0
+                  }
+                  return ipToNum(a.ip) - ipToNum(b.ip)
+                }).map((comp) => (
+                  <TableRow key={`${comp.component.id}-${comp.hostname}`}>
+                    <TableCell className="font-mono">
+                      {comp.hostname ?? "—"}
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">
+                      <div>{comp.component.component_name}</div>
+                      <div className="text-muted-foreground text-xs">
+                        {comp.component.component_uid}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell font-mono">
+                      {comp.ip ?? "—"}
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {comp.usernames?.length > 0 ? (() => {
+                        const sshUsers = comp.usernames.filter((u): u is { username: string; type: string } => u.type === "ssh" && !!u.username)
+                        const uiUsers = comp.usernames.filter((u): u is { username: string; type: string } => u.type.startsWith("ui") && !!u.username)
+                        // Talos: no SSH, managed through its API with talosctl
+                        const apiCmds = comp.usernames
+                          .filter((u) => u.type === "api-talos" && comp.fqdn)
+                          .map(() => `talosctl -n ${comp.fqdn} get version --insecure`)
+                        return (
+                          <div className="space-y-2.5">
+                            {sshUsers.length > 0 && (
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium mb-1">SSH Connection</div>
+                                <div className="space-y-1">
+                                  {sshUsers.map((u) => {
+                                    const sshCmd = `ssh ${u.username}@${comp.fqdn}`
+                                    return (
+                                      <div key={u.username} className="inline-flex items-center gap-1.5 rounded border border-border/50 bg-background/80 px-2.5 py-1">
+                                        <code className="text-xs font-mono text-foreground/90">{sshCmd}</code>
+                                        <IconTooltip label="Copy SSH command">
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-5 w-5 shrink-0"
+                                            onClick={async () => {
+                                              const ok = await copyToClipboard(sshCmd)
+                                              if (ok) toast.success("Copied to clipboard")
+                                              else toast.error("Failed to copy")
+                                            }}
+                                          >
+                                            <Copy className="h-3 w-3" />
+                                          </Button>
+                                        </IconTooltip>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {uiUsers.length > 0 && (
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium mb-1">Web Access</div>
+                                <div className="space-y-1">
+                                  {uiUsers.map((u) => {
+                                    const port =
+                                      u.type === "ui-proxmox" ? ":8006" :
+                                      u.type === "ui-proxmox-dm" ? ":8443" :
+                                      u.type === "ui-proxmox-bs" ? ":8007" : ""
+                                    const url = comp.fqdn ? `https://${comp.fqdn}${port}` : null
+                                    return (
+                                      <div key={u.username} className="flex flex-col items-start gap-1">
+                                        {url && (
+                                          <a
+                                            href={url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 rounded border border-border/50 bg-background/80 px-2.5 py-1 text-xs text-primary hover:underline"
+                                          >
+                                            <code className="font-mono">{url}</code>
+                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                          </a>
+                                        )}
+                                        <div className="inline-flex items-center gap-1.5 rounded border border-border/50 bg-background/80 px-2.5 py-1">
+                                          <code className="text-xs font-mono text-foreground/90">{u.username}</code>
+                                          <IconTooltip label="Copy username">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-5 w-5 shrink-0"
+                                              onClick={async () => {
+                                                const ok = await copyToClipboard(u.username)
+                                                if (ok) toast.success("Copied to clipboard")
+                                                else toast.error("Failed to copy")
+                                              }}
+                                            >
+                                              <Copy className="h-3 w-3" />
+                                            </Button>
+                                          </IconTooltip>
+                                        </div>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                            {apiCmds.length > 0 && (
+                              <div>
+                                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-medium mb-1">API Access</div>
+                                <div className="space-y-1">
+                                  {apiCmds.map((cmd) => (
+                                    <div key={cmd} className="inline-flex items-center gap-1.5 rounded border border-border/50 bg-background/80 px-2.5 py-1">
+                                      <code className="text-xs font-mono text-foreground/90">{cmd}</code>
+                                      <IconTooltip label="Copy talosctl command">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5 shrink-0"
+                                          onClick={async () => {
+                                            const ok = await copyToClipboard(cmd)
+                                            if (ok) toast.success("Copied to clipboard")
+                                            else toast.error("Failed to copy")
+                                          }}
+                                        >
+                                          <Copy className="h-3 w-3" />
+                                        </Button>
+                                      </IconTooltip>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })() : (
+                        "—"
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={comp.status} />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-1">
+                        {zpod.password && (
+                          <IconTooltip label="Copy password">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={async () => {
+                                const ok = await copyToClipboard(zpod.password!)
+                                if (ok) toast.success("Password copied")
+                                else toast.error("Failed to copy")
+                              }}
+                            >
+                              <KeyRound className="h-3 w-3" />
+                            </Button>
+                          </IconTooltip>
+                        )}
+                        {isMaintainer && extractComponentType(comp.component.component_uid) !== "zcore" && (
+                          <IconTooltip label="Remove component">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-7 w-7 text-destructive hover:text-destructive"
+                              onClick={() => setDeleteCompTarget(comp)}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </IconTooltip>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <p className="text-sm text-muted-foreground">No components</p>
+          )}
         </CardContent>
       </Card>
 
@@ -1740,6 +1798,8 @@ export function ZpodDetailPage() {
         open={showAddComponent}
         onOpenChange={setShowAddComponent}
         components={allComponents}
+        networks={liveNetworks ?? zpod.networks ?? []}
+        hasVcenter={(zpod.components ?? []).some((c) => extractComponentType(c.component.component_uid) === "vcsa")}
         saving={addingComponent}
         onSave={handleAddComponent}
       />

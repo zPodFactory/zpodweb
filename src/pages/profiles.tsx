@@ -15,10 +15,15 @@ import { ProfileEditorDialog } from "@/components/profile-editor-dialog"
 import { ProfileImportDialog } from "@/components/profile-import-dialog"
 import { useAuthStore } from "@/stores/auth-store"
 import { ProfileTrunk } from "@/components/profile-trunk"
-import { copyToClipboard } from "@/lib/utils"
+import { apiErrorDetail, copyToClipboard } from "@/lib/utils"
 import { flattenProfileItems } from "@/lib/profile-utils"
-import type { ComponentFull, Profile, ProfileItemCreate } from "@/types"
+import type { ComponentFull, Profile, ProfileItem, ProfileItemCreate } from "@/types"
 
+
+/** A profile item as zcli writes it: the fields that are set, nulls left out */
+function exportItem(item: ProfileItem): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(item).filter(([, v]) => v != null))
+}
 
 export function ProfilesPage() {
   const {
@@ -117,11 +122,13 @@ export function ProfilesPage() {
       }
       setEditorOpen(false)
       loadProfiles()
-    } catch {
+    } catch (err) {
+      // zpodapi says why (an unknown component, a host_id outside the network…)
       toast.error(
         editingProfile
           ? `Failed to update profile "${name}"`
-          : `Failed to create profile "${name}"`
+          : `Failed to create profile "${name}"`,
+        { description: apiErrorDetail(err) }
       )
     } finally {
       setSaving(false)
@@ -131,29 +138,7 @@ export function ProfilesPage() {
   const handleCopyJson = async (profile: Profile) => {
     const exportData = {
       name: profile.name,
-      profile: profile.profile.map((step) => {
-        if (Array.isArray(step)) {
-          return step.map(({ component_uid, host_id, hostname, vcpu, vmem, vnics, vdisks }) => {
-            const item: Record<string, unknown> = { component_uid }
-            if (host_id != null) item.host_id = host_id
-            if (hostname != null) item.hostname = hostname
-            if (vcpu != null) item.vcpu = vcpu
-            if (vmem != null) item.vmem = vmem
-            if (vnics != null) item.vnics = vnics
-            if (vdisks != null) item.vdisks = vdisks
-            return item
-          })
-        }
-        const { component_uid, host_id, hostname, vcpu, vmem, vnics, vdisks } = step
-        const item: Record<string, unknown> = { component_uid }
-        if (host_id != null) item.host_id = host_id
-        if (hostname != null) item.hostname = hostname
-        if (vcpu != null) item.vcpu = vcpu
-        if (vmem != null) item.vmem = vmem
-        if (vnics != null) item.vnics = vnics
-        if (vdisks != null) item.vdisks = vdisks
-        return item
-      }),
+      profile: profile.profile.map((step) => (Array.isArray(step) ? step.map(exportItem) : exportItem(step))),
     }
     const ok = await copyToClipboard(JSON.stringify(exportData, null, 2))
     if (ok) toast.success(`Copied "${profile.name}" JSON to clipboard`)
@@ -170,8 +155,8 @@ export function ProfilesPage() {
       toast.success(`Profile "${name}" imported`)
       setImportOpen(false)
       loadProfiles()
-    } catch {
-      toast.error(`Failed to import profile "${name}"`)
+    } catch (err) {
+      toast.error(`Failed to import profile "${name}"`, { description: apiErrorDetail(err) })
     } finally {
       setImporting(false)
     }
@@ -185,8 +170,8 @@ export function ProfilesPage() {
       toast.success(`Profile "${deleteTarget.name}" deleted`)
       setDeleteTarget(null)
       loadProfiles()
-    } catch {
-      toast.error(`Failed to delete profile "${deleteTarget.name}"`)
+    } catch (err) {
+      toast.error(`Failed to delete profile "${deleteTarget.name}"`, { description: apiErrorDetail(err) })
     } finally {
       setDeleting(false)
     }

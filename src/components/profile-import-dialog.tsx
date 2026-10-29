@@ -96,6 +96,9 @@ function parseAndValidate(
         vmem: item.vmem ?? null,
         vnics: item.vnics ?? null,
         vdisks: item.vdisks ?? null,
+        nested: item.nested ?? null,
+        network: item.network ?? null,
+        vlan_id: item.vlan_id ?? null,
       })
     }
   }
