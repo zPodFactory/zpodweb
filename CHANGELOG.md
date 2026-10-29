@@ -24,6 +24,8 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-10-29
+
 ### Added
 
 - Component placement and network (zpodcore 0.9.x): the Add component dialog and each profile
