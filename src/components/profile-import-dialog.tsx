@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -123,21 +123,26 @@ export function ProfileImportDialog({
 
   const result = parseAndValidate(json, components)
 
-  // Pre-fill name from JSON when it changes (unless user manually edited)
-  useEffect(() => {
-    if (result.name && !nameManuallyEdited) {
-      setName(result.name)
-    }
-  }, [result.name, nameManuallyEdited])
+  // Pre-fill name from JSON when it changes (unless user manually edited).
+  // State adjusted during render rather than in an effect.
+  const prefill = nameManuallyEdited ? null : result.name || null
+  const [lastPrefill, setLastPrefill] = useState<string | null>(null)
+  if (prefill !== lastPrefill) {
+    setLastPrefill(prefill)
+    if (prefill) setName(prefill)
+  }
 
-  // Reset state when dialog opens/closes
-  useEffect(() => {
+  // Reset state when the dialog closes
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
     if (!open) {
       setJson("")
       setName("")
       setNameManuallyEdited(false)
+      setLastPrefill(null)
     }
-  }, [open])
+  }
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

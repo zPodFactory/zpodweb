@@ -801,7 +801,7 @@ export function ZpodDetailPage() {
 
   // Build progress hover card data (must be before early returns for hook rules)
   const zpodProfile = zpod ? profiles.find((p) => p.name === zpod.profile) : undefined
-  const profileSteps = zpodProfile?.profile ?? []
+  const profileSteps = useMemo(() => zpodProfile?.profile ?? [], [zpodProfile])
   const totalFromProfile = zpodProfile ? flattenProfileItems(zpodProfile.profile).length : 0
   const doneCount = (zpod?.components ?? []).filter((c) => c.status === "ACTIVE").length
   const showBuildProgress = zpod != null &&

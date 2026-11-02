@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { IconTooltip } from "@/components/icon-tooltip"
 import {
   Dialog,
@@ -222,19 +222,33 @@ export function ProfileEditorDialog({
     [components]
   )
 
-  useEffect(() => {
-    if (!open) return
-    if (profile) {
-      setName(profile.name)
-      setSteps(profileToSteps(profile.profile))
-    } else {
-      setName("")
-      // Always start with zcore as first step
-      const defaultZcore = zcoreUids[0] ?? "zcore"
-      setSteps([{ id: uid(), items: [newItem(defaultZcore)] }])
+  // Load the profile (or a fresh zcore step) whenever the dialog opens or its inputs change:
+  // adjusted during render, not in an effect, so the previous profile never paints.
+  const [loadedFrom, setLoadedFrom] = useState<{
+    open: boolean
+    profile: typeof profile
+    zcoreUids: string[]
+  } | null>(null)
+  if (
+    loadedFrom === null ||
+    loadedFrom.open !== open ||
+    loadedFrom.profile !== profile ||
+    loadedFrom.zcoreUids !== zcoreUids
+  ) {
+    setLoadedFrom({ open, profile, zcoreUids })
+    if (open) {
+      if (profile) {
+        setName(profile.name)
+        setSteps(profileToSteps(profile.profile))
+      } else {
+        setName("")
+        // Always start with zcore as first step
+        const defaultZcore = zcoreUids[0] ?? "zcore"
+        setSteps([{ id: uid(), items: [newItem(defaultZcore)] }])
+      }
+      setExpandedStep(null)
     }
-    setExpandedStep(null)
-  }, [open, profile, zcoreUids])
+  }
 
   const isEditing = profile != null
   const isValid = name.trim().length > 0 && steps.length > 0 && steps[0].items.length === 1 && extractComponentType(steps[0].items[0].component_uid) === "zcore"

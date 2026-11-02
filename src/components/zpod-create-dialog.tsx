@@ -196,7 +196,7 @@ export function ZpodCreateDialog({
       })
       .catch(() => toast.error("Failed to load form data"))
       .finally(() => setDataLoading(false))
-  }, [open, fetchProfiles, fetchEndpoints, fetchSettings])
+  }, [open, fetchProfiles, fetchEndpoints, fetchSettings, isSuperadmin, username])
 
   const fullName = usernamePrefix ? `${usernamePrefix}-${name}` : name
   const effectiveDomain = domain || defaultDomain

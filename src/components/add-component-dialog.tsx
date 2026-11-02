@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -88,17 +88,22 @@ export function AddComponentDialog({
 
   const groups = useMemo(() => getComponentGroups(components), [components])
 
-  useEffect(() => {
-    if (!open) return
-    setComponentUid("")
-    setHostname("")
-    setHostId("")
-    setVcpu("")
-    setVmem("")
-    setVnics("")
-    setVdisks("")
-    setPlacement(NO_PLACEMENT)
-  }, [open])
+  // Reset the form each time the dialog opens: adjusted during render, not in an effect,
+  // so the stale values never paint.
+  const [wasOpen, setWasOpen] = useState(false)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) {
+      setComponentUid("")
+      setHostname("")
+      setHostId("")
+      setVcpu("")
+      setVmem("")
+      setVnics("")
+      setVdisks("")
+      setPlacement(NO_PLACEMENT)
+    }
+  }
 
   const selectedType = componentUid ? extractComponentType(componentUid) : ""
   const hex = componentUid ? getComponentHex(componentUid) : ""
