@@ -24,6 +24,17 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+### Security
+
+- Dependencies updated within their ranges (axios 1.21, react-router 7.18.5 and what they pull
+  in), which clears every advisory `npm audit` reported against the shipped app.
+
+### Fixed
+
+- Dialogs that reset or load their fields when opened (add component, profile editor, profile
+  import, API target) now do it before the first paint, so the previous values no longer flash
+  for a frame.
+
 ## [0.3.0] — 2026-10-29
 
 ### Added

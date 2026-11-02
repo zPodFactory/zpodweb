@@ -6,8 +6,8 @@ name: checks
 # leak what it guards), so that part runs on the machine that cuts the release.
 #
 # Identical in every zPodFactory repository, except the `tests` job, which exists only where
-# there is an offline suite to run. Here that is the production build, TypeScript then Vite:
-# the same `npm run build` the release cut runs before it commits.
+# there is an offline suite to run. Here that is ESLint, then the production build, TypeScript
+# then Vite: the same `npm run build` the release cut runs before it commits.
 on:
   push:
   pull_request:
@@ -33,4 +33,5 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - run: npm run lint
       - run: npm run build

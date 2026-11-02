@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { generateId } from "@/lib/utils"
 import {
   Dialog,
@@ -29,17 +29,15 @@ export function TargetDialog({
   const [url, setUrl] = useState("")
   const [token, setToken] = useState("")
 
-  useEffect(() => {
-    if (target) {
-      setName(target.name)
-      setUrl(target.url)
-      setToken(target.token)
-    } else {
-      setName("")
-      setUrl("")
-      setToken("")
-    }
-  }, [target, open])
+  // Load the target being edited (or blank fields) when the dialog opens or the target
+  // changes: adjusted during render, not in an effect.
+  const [loadedFrom, setLoadedFrom] = useState<{ target: typeof target; open: boolean } | null>(null)
+  if (loadedFrom === null || loadedFrom.target !== target || loadedFrom.open !== open) {
+    setLoadedFrom({ target, open })
+    setName(target?.name ?? "")
+    setUrl(target?.url ?? "")
+    setToken(target?.token ?? "")
+  }
 
   function handleSave() {
     if (!name || !url || !token) return
