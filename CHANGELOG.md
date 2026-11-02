@@ -24,6 +24,8 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-11-02
+
 ### Security
 
 - Dependencies updated within their ranges (axios 1.21, react-router 7.18.5 and what they pull
