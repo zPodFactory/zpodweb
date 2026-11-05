@@ -147,7 +147,7 @@ export function UploadIndicator() {
         : entries.length
 
   return (
-    <HoverCard openDelay={200} closeDelay={300}>
+    <HoverCard closeDelay={300}>
       <HoverCardTrigger asChild>
         <button className="relative flex items-center justify-center h-8 w-8 rounded-md hover:bg-muted transition-colors">
           <Upload className="h-4 w-4 text-muted-foreground" />

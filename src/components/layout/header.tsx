@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate } from "react-router"
 import { useAuthStore } from "@/stores/auth-store"
 import { useTargetStore } from "@/stores/target-store"
-import { usePreferencesStore } from "@/stores/preferences-store"
+import { usePreferencesStore, type ZpodsView } from "@/stores/preferences-store"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { isInProgressStatus } from "@/lib/status-colors"
@@ -94,11 +94,16 @@ function ZpodStats() {
   )
 }
 
+const ZPODS_VIEW_OPTIONS: { value: ZpodsView; label: string }[] = [
+  { value: "table", label: "Table" },
+  { value: "list", label: "List" },
+]
+
 export function Header() {
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
   const { targets, activeTargetId, clearActiveTarget } = useTargetStore()
-  const { pollingInterval, setPollingInterval } = usePreferencesStore()
+  const { pollingInterval, setPollingInterval, zpodsView, setZpodsView } = usePreferencesStore()
   const activeTarget = targets.find((t) => t.id === activeTargetId)
   const [prefsOpen, setPrefsOpen] = useState(false)
 
@@ -192,6 +197,25 @@ export function Header() {
                         ? "Auto-refresh disabled"
                         : `Auto-refresh set to ${opt.label}`
                     )
+                  }}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+            <Label className="block pt-2 text-xs text-muted-foreground">
+              zPods page — the view it opens in
+            </Label>
+            <div className="flex flex-wrap gap-1.5">
+              {ZPODS_VIEW_OPTIONS.map((opt) => (
+                <Button
+                  key={opt.value}
+                  size="sm"
+                  variant={zpodsView === opt.value ? "default" : "outline"}
+                  className="text-xs"
+                  onClick={() => {
+                    setZpodsView(opt.value)
+                    toast.success(`zPods page opens in the ${opt.label} view`)
                   }}
                 >
                   {opt.label}

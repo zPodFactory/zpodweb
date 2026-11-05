@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { EndpointLink, OwnerLinks, ProfileLink } from "@/components/entity-links"
 import { useNavigate, useParams } from "react-router"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
@@ -78,6 +79,8 @@ import { ZpodPermission as ZpodPermissionEnum } from "@/types"
 import { AddComponentDialog } from "@/components/add-component-dialog"
 import { ElapsedTime } from "@/components/elapsed-time"
 import { flattenProfileItems } from "@/lib/profile-utils"
+import { zpodBuildPct, zpodSetupStatus } from "@/lib/zpod-utils"
+import { ZpodSetupRow } from "@/components/build-progress-hover"
 import { apiErrorDetail, cn, copyToClipboard, formatDateTime } from "@/lib/utils"
 import { extractComponentType, extractComponentVersion, getComponentHex, componentStyles } from "@/lib/component-colors"
 import { groupDeployedByUid } from "@/lib/build-progress"
@@ -803,14 +806,13 @@ export function ZpodDetailPage() {
   const zpodProfile = zpod ? profiles.find((p) => p.name === zpod.profile) : undefined
   const profileSteps = useMemo(() => zpodProfile?.profile ?? [], [zpodProfile])
   const totalFromProfile = zpodProfile ? flattenProfileItems(zpodProfile.profile).length : 0
-  const doneCount = (zpod?.components ?? []).filter((c) => c.status === "ACTIVE").length
   const showBuildProgress = zpod != null &&
     zpod.status !== "ACTIVE" &&
     zpod.status !== "DELETED" &&
     zpod.status !== "DELETING" &&
     !zpod.status.endsWith("_FAILED") &&
     totalFromProfile > 0
-  const buildPct = totalFromProfile > 0 ? Math.round((doneCount / totalFromProfile) * 100) : 0
+  const buildPct = zpod ? zpodBuildPct(zpod, totalFromProfile) : 0
 
   const buildHoverRows = useMemo(() => {
     if (!showBuildProgress || !zpod) return null
@@ -874,12 +876,6 @@ export function ZpodDetailPage() {
   const networkFeatures = zcoreNetworkFeatures(zcoreVersion)
   const mgmtNetwork = managementNetwork(zpod.networks ?? [])
 
-  // Owner list
-  const owners = zpod.permissions
-    ?.filter((p) => p.permission === "OWNER")
-    .flatMap((p) => p.users.map((u) => u.username))
-  const ownerStr = owners?.length ? owners.join(", ") : "—"
-
   // Is the current user a maintainer? Driven by GET /zpods/{id}/permissions/mine
   // (superadmins get a virtual ADMIN server-side, so no client-side special case).
   const isMaintainer =
@@ -929,7 +925,7 @@ export function ZpodDetailPage() {
   const t0Name = endpointFull?.endpoints.network.t0 ?? ""
 
   const statusBadgeElement = showBuildProgress ? (
-    <HoverCard openDelay={200} closeDelay={100}>
+    <HoverCard>
       <HoverCardTrigger asChild>
         <span className="cursor-default">
           <StatusBadge status={zpod.status} />
@@ -946,6 +942,7 @@ export function ZpodDetailPage() {
         </div>
         {buildHoverRows && "rows" in buildHoverRows && (
           <div className="mt-2.5">
+            <ZpodSetupRow status={zpodSetupStatus(zpod)} />
             {buildHoverRows.rows.map((row) => {
               const candidates = buildHoverRows.deployedByUid.get(row.pi.component_uid) ?? []
               const deployed = (row.pi.hostname
@@ -959,7 +956,7 @@ export function ZpodDetailPage() {
               return (
                 <div key={row.key} className="flex items-center min-h-[28px] text-sm">
                   <div className="flex flex-col items-center w-0.5 shrink-0 self-stretch">
-                    <div className={`flex-1 w-full${row.firstInTrunk ? "" : " bg-zinc-600/60"}`} />
+                    <div className="flex-1 w-full bg-zinc-600/60" />
                     <span className="h-[5px] w-[5px] rounded-full bg-zinc-400 shrink-0" />
                     <div className={`flex-1 w-full${row.lastInTrunk ? "" : " bg-zinc-600/60"}`} />
                   </div>
@@ -1074,23 +1071,23 @@ export function ZpodDetailPage() {
                 ) : "—"
               }
             />
-            <DetailRow label="Profile" value={zpod.profile} />
+            <DetailRow label="Profile" value={<ProfileLink name={zpod.profile} />} />
             <DetailRow
               label="Endpoint"
               value={
                 endpointFull ? (
                   <div>
-                    <div className="font-bold text-foreground">{endpointFull.name}</div>
+                    <EndpointLink endpoint={zpod.endpoint} className="font-bold text-foreground" />
                     <div className="text-muted-foreground text-xs">{endpointFull.endpoints.compute.hostname} (compute)</div>
                     <div className="text-muted-foreground text-xs">{endpointFull.endpoints.network.hostname} (network)</div>
                   </div>
                 ) : (
-                  zpod.endpoint?.name ?? "—"
+                  <EndpointLink endpoint={zpod.endpoint} />
                 )
               }
             />
             <DetailRow label="Description" value={zpod.description ?? "—"} />
-            <DetailRow label="Owner(s)" value={ownerStr} />
+            <DetailRow label="Owner(s)" value={<OwnerLinks zpod={zpod} />} />
             <Separator className="my-2" />
             <PasswordRow value={zpod.password} />
             <Separator className="my-2" />

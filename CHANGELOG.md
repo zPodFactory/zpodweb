@@ -24,6 +24,68 @@ it on every push. Preview a note with `python3 tools/release_notes.py X.Y.Z`.
 
 ## [Unreleased]
 
+### Added
+
+- zPods page: a List view next to the Table; Preferences sets the view the page opens in, and
+  the page's toggle switches for that visit. Each zPod is a row with its status as a colored bar
+  (striped and moving while it builds or is deleted), its live components in their topology
+  colors (a building zPod also shows what is still to come), a status badge under its name and domain
+  when it is not ACTIVE (deleting, building, failed), its /24 and the user networks it
+  routes globally, endpoint, owners and age, so a whole factory reads at a glance. In both views,
+  resting anywhere on a building zPod's row but its networks opens the build's progress, and resting on a zPod's networks opens, under the cursor, a short summary for
+  administrators: a small network diagram (the zPod's
+  segment as a vertical 802.1Q trunk, a line per VLAN, mgmt's native one muted, with the NSX T1
+  (and its uplink to the endpoint's T0 and the fabric) and zcore tapping it: eth0 untagged on
+  mgmt, an eth1 port in its VLAN's color for each VLAN /26, then for each user network routed
+  globally, each with zcore's address on it and the subnet it routes), each storage's usage (a
+  network or a storage opens in the zPod's Networks or Storage card); the row already shows the
+  endpoint, owners and age, so the summary does not repeat them. The Columns menu applies to
+  both views.
+- zPods page and zPod detail page: profile, endpoint and owner names are links. They open the
+  Profiles, Endpoints or Users page scrolled to that item and outlined for a few seconds (a profile
+  also opens expanded), as a group badge already does on the Users page. A network opens the zPod's Networks table with
+  it outlined; the zPod's /24 frames its whole zPod Networks group.
+- Dashboard: each count opens the zPods page on that status and lists its zPods on hover; a
+  profile's bar opens the zPods page filtered on it and lists its zPods as a tree, and so does each
+  row of the new zPods per Endpoint card. A Needs attention strip appears only when a zPod failed
+  or has components down. Recent zPods spans the page with the last 10, now with their owners
+  and the time since each was deployed, profile, endpoint and owner as links, a Network column
+  (the zPod's /24 and the user networks it routes globally, each opening its Networks table), and
+  the zPod's summary on its Network cell and, as on the zPods page, a building zPod's progress
+  anywhere else on its row.
+- Endpoints page: an Advertised networks section on each endpoint. Its zPod range is drawn as a
+  map of /24s, each zPod's in its status color (pulsing while it builds or is deleted) and marked with how many user networks it
+  advertises globally (the zPod's summary on hover, its page on click), with how many
+  are used; below it, the user networks the zPods route globally, which sit
+  outside that range, as a tree that grows downward however many zPods advertise: physical
+  network, the endpoint's T0, each zPod's T1 and the networks it advertises. A zPod outside the range, or a user network inside it, is
+  flagged.
+- Libraries page: each library shows how many components it holds and how many are active,
+  refreshed with the page, so a resync's new components show as they land (after a resync the
+  number pops as it changes); it opens the Components page on that library.
+- Components page: a library filter next to the status one, as the zPods page's profile filter
+  (offered when there is more than one library, highlighted while it narrows the list).
+- Components page: deleted components are no longer listed, counted or offered in the filters, and
+  the Status column says ACTIVE or INACTIVE instead of the download's NOT_STARTED or COMPLETED;
+  it shows the download only while one runs (its progress) or after one failed (the reason on
+  hover). The table keeps every column and fits its card instead of scrolling sideways: the
+  description takes the room the others leave and truncates (the full text on hover).
+
+### Changed
+
+- zPods page: the profile, endpoint and owner filters and a sort menu sit in the toolbar for both
+  views, so switching views keeps them in place; the table's Profile, Endpoint and Owner headers
+  now sort like the others.
+- A building zPod's progress bar moves at each stage instead of only when a component turns
+  ACTIVE: 5% once the zPod leaves PENDING (its vApp and networking, before any component), then
+  each component counts 30% of its share while BUILDING, 70% in POST_SCRIPTS, 90% in
+  CONFIG_SCRIPTS and all of it once ACTIVE, on the zPods page, the zPod page and the Dashboard.
+  The build tree starts with a "Network & vApp" step, so those first 5%
+  read as work too.
+- Every hover card waits the same 700 ms before opening (it used to vary from 150 to 700 ms by
+  page), so sweeping the mouse across a page no longer pops cards open on the way. Button labels
+  still show after 300 ms.
+
 ## [0.3.1] — 2026-11-02
 
 ### Security

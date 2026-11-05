@@ -7,23 +7,54 @@ import { extractComponentType } from "@/lib/component-colors"
 import type { HoverRow } from "@/lib/build-progress"
 import type { ZpodComponentView } from "@/types"
 
+/** The first step of a build tree: the zPod's networking and vApp, before its components */
+export function ZpodSetupRow({ status }: { status: string }) {
+  return (
+    <div
+      className="flex min-h-[28px] items-center text-sm"
+      title="Before any component: the zPod's DNS, its NSX networking (T1 and segment) and its vSphere vApp"
+    >
+      <TreeTrunk first />
+      <TreeConnector />
+      <span className={`ml-1.5 truncate text-left ${status === "ACTIVE" ? "text-zinc-300" : "text-zinc-500"}`}>
+        Network &amp; vApp
+      </span>
+      <span className="ml-auto shrink-0 pl-3">
+        <StatusBadge status={status} />
+      </span>
+    </div>
+  )
+}
+
 interface BuildProgressHoverContentProps {
+  /** The zPod's own setup, shown as the tree's first step (zpodSetupStatus) */
+  setupStatus: string
   creationDate: string
   pct: number
   hoverRows: HoverRow[]
   deployedByUid: Map<string, ZpodComponentView[]>
+  /** Where it opens: above its trigger, centered, by default; a list row opens it at the cursor */
+  side?: "top" | "right" | "bottom" | "left"
+  align?: "start" | "center"
+  alignOffset?: number
 }
 
 export function BuildProgressHoverContent({
+  setupStatus,
   creationDate,
   pct,
   hoverRows,
   deployedByUid,
+  side = "top",
+  align = "center",
+  alignOffset = 0,
 }: BuildProgressHoverContentProps) {
   return (
     <HoverCardContent
       className="w-auto min-w-[280px] px-4 py-3 bg-[#181825] border-[#313244]"
-      side="top"
+      side={side}
+      align={align}
+      alignOffset={alignOffset}
     >
       <div className="flex items-center justify-between">
         <p className="text-sm font-bold text-zinc-100">Build Progress</p>
@@ -38,6 +69,7 @@ export function BuildProgressHoverContent({
         </span>
       </div>
       <div className="mt-2.5">
+        <ZpodSetupRow status={setupStatus} />
         {hoverRows.map((row) => {
           const candidates = deployedByUid.get(row.pi.component_uid) ?? []
           // Match by hostname when available, otherwise take the first unmatched
@@ -55,7 +87,7 @@ export function BuildProgressHoverContent({
               className="flex items-center min-h-[28px] text-sm"
             >
               {/* Main trunk vertical with junction dot */}
-              <TreeTrunk first={row.firstInTrunk} last={row.lastInTrunk} />
+              <TreeTrunk last={row.lastInTrunk} />
               {row.parallel ? (
                 <>
                   {/* Bridge from trunk to branch (first item) or spacer */}

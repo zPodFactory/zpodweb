@@ -4,6 +4,7 @@ import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
 import { useAuthStore } from "@/stores/auth-store"
+import { usePreferencesStore } from "@/stores/preferences-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -36,9 +37,13 @@ import { SortableHead } from "@/components/sortable-head"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { IconTooltip } from "@/components/icon-tooltip"
-import { Plus, Info, Trash2, Settings2, KeyRound, Search } from "lucide-react"
+import { Plus, Info, Trash2, Settings2, KeyRound, Search, Rows3, LayoutList, ArrowUpNarrowWide, ArrowDownWideNarrow } from "lucide-react"
 import { cidrToVlanId } from "@/lib/network-utils"
-import type { Zpod, ZpodComponentView, ZpodNetwork, Profile, ProfileItem, User } from "@/types"
+import type { Zpod, ZpodComponentView, ZpodNetwork, Profile, ProfileItem } from "@/types"
+import { ZpodDetails, ZpodListView } from "@/components/zpod-list-view"
+import { useCursorCard, useRowHoverCard } from "@/hooks/use-cursor-card"
+import { EndpointLink, OwnerLinks, ProfileLink } from "@/components/entity-links"
+import { isZpodMaintainer, parentCidr, zpodBuildPct, zpodSetupStatus, zpodShowsProgress, zpodSubnets } from "@/lib/zpod-utils"
 import { StatusBadge } from "@/components/status-badge"
 import { isInProgressStatus } from "@/lib/status-colors"
 import {
@@ -60,53 +65,6 @@ function groupComponents(components: ZpodComponentView[]): string[] {
     counts.set(name, (counts.get(name) ?? 0) + 1)
   }
   return Array.from(counts.entries()).map(([name, count]) => `${count} x ${name}`)
-}
-
-/** Extract owner usernames from permissions */
-function getOwners(zpod: Zpod): string {
-  const owners = zpod.permissions
-    ?.filter((p) => p.permission === "OWNER")
-    .flatMap((p) => p.users.map((u) => u.username))
-  return owners?.length ? owners.join(", ") : "—"
-}
-
-/**
- * Is the given user a maintainer of this zpod? Mirrors the backend
- * ZpodMaintainer rule: superadmin OR OWNER/ADMIN directly OR via a group.
- *
- * On the detail page we use GET /zpods/{id}/permissions/mine — for the list
- * we derive from the already-returned permissions field to avoid N+1 calls.
- */
-function isZpodMaintainer(zpod: Zpod, user: User | null): boolean {
-  if (!user) return false
-  if (user.superadmin) return true
-  return (zpod.permissions ?? []).some(
-    (p) =>
-      (p.permission === "OWNER" || p.permission === "ADMIN") &&
-      (p.users.some((u) => u.id === user.id) ||
-        (p.permission_groups ?? []).some((g) =>
-          g.users.some((u) => u.id === user.id)
-        ))
-  )
-}
-
-/** Compute the parent /24 CIDR from a list of /26 networks */
-function parentCidr(networks: ZpodNetwork[]): string {
-  const first = networks[0]?.cidr
-  if (!first) return "—"
-  const [ipStr, prefixStr] = first.split("/")
-  const parts = ipStr.split(".").map(Number)
-  const prefix = parseInt(prefixStr, 10)
-  if (prefix <= 24) return first
-  // Mask to /24
-  const masked = `${parts[0]}.${parts[1]}.${parts[2]}.0/24`
-  return masked
-}
-
-/** The zPod's own /26s: zpodapi with user networks also returns those (kind "user"),
- *  which belong on the detail page, not in this summary. Older zpodapi has no kind. */
-function zpodSubnets(networks: ZpodNetwork[]): ZpodNetwork[] {
-  return networks.filter((n) => !n.kind || n.kind === "zpod")
 }
 
 function NetworkSubnets({ networks }: { networks: ZpodNetwork[] }) {
@@ -185,6 +143,22 @@ function saveColumnPrefs(username: string, prefs: Record<ColumnKey, boolean>) {
   localStorage.setItem(STORAGE_KEY_PREFIX + username, JSON.stringify(prefs))
 }
 
+const VIEWS = [
+  { id: "table", label: "Table", icon: Rows3 },
+  { id: "list", label: "List", icon: LayoutList },
+] as const
+
+/** The toolbar's sort menu, the same keys the table's column headers sort on */
+const SORT_FIELDS = [
+  { key: "name", label: "Name" },
+  { key: "status", label: "Status" },
+  { key: "profile", label: "Profile" },
+  { key: "endpoint.name", label: "Endpoint" },
+  { key: "networks.0.cidr", label: "Network" },
+  { key: "permissions.0.users.0.username", label: "Owner" },
+  { key: "creation_date", label: "Creation date" },
+] as const
+
 const VALID_STATUS_FILTERS = ["ACTIVE", "BUILDING", "FAILED"] as const
 type StatusFilter = "ALL" | (typeof VALID_STATUS_FILTERS)[number]
 
@@ -208,14 +182,23 @@ export function ZpodsPage() {
   const [destroying, setDestroying] = useState(false)
   const [filter, setFilter] = useState("")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => parseStatusParam(searchParams.get("status")))
-  const [ownerFilter, setOwnerFilter] = useState("ALL")
-  const [profileFilter, setProfileFilter] = useState("ALL")
-  const [endpointFilter, setEndpointFilter] = useState("ALL")
+  const [ownerFilter, setOwnerFilter] = useState(() => searchParams.get("owner") ?? "ALL")
+  // ?profile=, ?endpoint= and ?owner= (names), from the dashboard's breakdowns
+  const [profileFilter, setProfileFilter] = useState(() => searchParams.get("profile") ?? "ALL")
+  // Each endpoint's NSX T0, for the network diagram in a List row's hover card
+  const [t0ByEndpoint, setT0ByEndpoint] = useState<Map<number, string>>(new Map())
+  const [endpointFilter, setEndpointFilter] = useState(() => searchParams.get("endpoint") ?? "ALL")
 
-  // Sync statusFilter when URL search params change (e.g. header badge click while already on /zpods)
+  // Sync the filters when URL search params change (e.g. header badge click while already on /zpods)
   useEffect(() => {
     const fromUrl = parseStatusParam(searchParams.get("status"))
     setStatusFilter(fromUrl)
+    const profile = searchParams.get("profile")
+    if (profile) setProfileFilter(profile)
+    const endpoint = searchParams.get("endpoint")
+    if (endpoint) setEndpointFilter(endpoint)
+    const owner = searchParams.get("owner")
+    if (owner) setOwnerFilter(owner)
   }, [searchParams])
 
   // Unique filter values across all zpods
@@ -263,7 +246,15 @@ export function ZpodsPage() {
     })
   }, [zpods, filter, statusFilter, ownerFilter, profileFilter, endpointFilter])
 
-  const { sorted, sort, toggleSort } = useSort(filtered, "name")
+  const { sorted, sort, setSort, toggleSort } = useSort(filtered, "name")
+  // Opens in the default view from Preferences; the toggle switches for this visit only
+  const defaultView = usePreferencesStore((s) => s.zpodsView)
+  const [view, setView] = useState(defaultView)
+  // A table row's cards, as in the List view: the zPod's summary from its Networks cell (under the
+  // cursor), and a building zPod's progress from anywhere else on its row. The summary card counts
+  // as the networks: it is rendered inside the row
+  const netCard = useCursorCard()
+  const buildCard = useRowHoverCard("[data-zpod-networks], [data-zpod-card]")
 
   const [endpointCount, setEndpointCount] = useState<number | null>(null)
 
@@ -294,6 +285,13 @@ export function ZpodsPage() {
     })
   }
 
+  // The filters in the toolbar, the same for the table and the list
+  const listFilters = [
+    { label: "Profile", value: profileFilter, onChange: setProfileFilter, options: allProfiles },
+    { label: "Endpoint", value: endpointFilter, onChange: setEndpointFilter, options: allEndpoints },
+    { label: "Owner", value: ownerFilter, onChange: setOwnerFilter, options: allOwners },
+  ]
+
   const visibleCount = 2 + Object.values(columns).filter(Boolean).length // Name + Actions/Status are always shown; + toggled cols
 
   const loadZpods = useCallback(() => {
@@ -310,6 +308,7 @@ export function ZpodsPage() {
         setZpods(z)
         setProfiles(p)
         setEndpointCount(eps.length)
+        setT0ByEndpoint(new Map(eps.map((e) => [e.id, e.endpoints.network.t0])))
       })
       .catch(() => toast.error("Failed to fetch zpods"))
       .finally(() => setLoading(false))
@@ -374,13 +373,30 @@ export function ZpodsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">zPods</h1>
           <Badge variant="outline">{sorted.length === zpods.length ? `${zpods.length} total` : `${sorted.length} / ${zpods.length}`}</Badge>
         </div>
         <div className="flex items-center gap-2">
-          {/* Column visibility toggle */}
+          <div className="flex rounded-md border p-0.5" role="group" aria-label="View">
+            {VIEWS.map(({ id, label, icon: Icon }) => (
+              <IconTooltip key={id} label={`${label} view`}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-pressed={view === id}
+                  aria-label={`${label} view`}
+                  onClick={() => setView(id)}
+                  className={cn("h-7 gap-1.5 px-2.5 text-xs", view === id ? "bg-[#89b4fa]/15 text-foreground" : "text-muted-foreground")}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {label}
+                </Button>
+              </IconTooltip>
+            ))}
+          </div>
+          {/* Column visibility: the table's columns, and what the list's rows show */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -389,7 +405,7 @@ export function ZpodsPage() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+              <DropdownMenuLabel>{view === "table" ? "Toggle columns" : "Show in each row"}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               {OPTIONAL_COLUMNS.map((col) => (
                 <DropdownMenuCheckboxItem
@@ -410,8 +426,8 @@ export function ZpodsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <div className="relative max-w-sm flex-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative max-w-sm flex-1 min-w-[200px]">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Filter zpods..."
@@ -440,6 +456,52 @@ export function ZpodsPage() {
             </Button>
           ))}
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {listFilters.map((f) =>
+            f.options.length > 1 ? (
+              <Select key={f.label} value={f.value} onValueChange={f.onChange}>
+                <SelectTrigger
+                  className={cn("h-8 w-auto gap-1.5 text-xs", f.value !== "ALL" && "border-[#89b4fa]/50 bg-[#89b4fa]/10")}
+                  aria-label={f.label}
+                >
+                  <SelectValue>{f.value === "ALL" ? `All ${f.label.toLowerCase()}s` : `${f.label}: ${f.value}`}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All {f.label.toLowerCase()}s</SelectItem>
+                  {f.options.map((opt) => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null
+          )}
+          {/* One control: the focus ring goes around both parts, as each part's own would stop at
+              the seam and run under the other */}
+          <div className="flex items-center rounded-md ring-offset-background has-[:focus]:ring-2 has-[:focus]:ring-ring has-[:focus]:ring-offset-2">
+            <Select value={sort.key} onValueChange={(key) => setSort({ key, direction: sort.direction })}>
+              <SelectTrigger className="h-8 w-auto gap-1.5 rounded-r-none text-xs focus:ring-0 focus:ring-offset-0" aria-label="Sort by">
+                <span className="text-muted-foreground">Sort</span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_FIELDS.map((f) => (
+                  <SelectItem key={f.key} value={f.key}>{f.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <IconTooltip label={sort.direction === "asc" ? "Ascending" : "Descending"}>
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 rounded-l-none border-l-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                aria-label={sort.direction === "asc" ? "Sorted ascending, switch to descending" : "Sorted descending, switch to ascending"}
+                onClick={() => setSort({ key: sort.key, direction: sort.direction === "asc" ? "desc" : "asc" })}
+              >
+                {sort.direction === "asc" ? <ArrowUpNarrowWide className="h-3.5 w-3.5" /> : <ArrowDownWideNarrow className="h-3.5 w-3.5" />}
+              </Button>
+            </IconTooltip>
+          </div>
+        </div>
       </div>
 
       <ZpodCreateDialog
@@ -458,6 +520,25 @@ export function ZpodsPage() {
         confirmText="Destroy"
       />
 
+      {view === "list" ? (
+        sorted.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-sm text-muted-foreground">
+              {zpods.length === 0 ? "No zpods found" : "No zpods match these filters"}
+            </CardContent>
+          </Card>
+        ) : (
+          <ZpodListView
+            zpods={sorted}
+            profileSteps={profileStepsMap}
+            t0ByEndpoint={t0ByEndpoint}
+            user={user}
+            onCopyPassword={handleCopyPassword}
+            onDestroy={setDestroyTarget}
+            columns={columns}
+          />
+        )
+      ) : (
       <Card>
         <CardContent className="p-0">
           {zpods.length === 0 ? (
@@ -465,46 +546,16 @@ export function ZpodsPage() {
               No zpods found
             </p>
           ) : (
-            <Table>
+            <Table
+              // Tighter cells than the default (px-3, not p-4 all round), as on the Components page;
+              // the cells with their own padding (actions, the progress bar) keep it with !
+              className="[&_td]:px-3 [&_th]:px-3"
+            >
               <TableHeader>
                 <TableRow>
                   <SortableHead label="Name / Domain" sortKey="name" sort={sort} onToggle={toggleSort} className="whitespace-nowrap" />
                   {OPTIONAL_COLUMNS.map((col) => {
                     if (!columns[col.key]) return null
-                    const filterConfig = col.key === "owners"
-                      ? { value: ownerFilter, onChange: setOwnerFilter, label: "Owner", options: allOwners }
-                      : col.key === "profile"
-                        ? { value: profileFilter, onChange: setProfileFilter, label: "Profile", options: allProfiles }
-                        : col.key === "endpoint"
-                          ? { value: endpointFilter, onChange: setEndpointFilter, label: "Endpoint", options: allEndpoints }
-                          : null
-                    if (filterConfig && filterConfig.options.length > 1) {
-                      const isFiltered = filterConfig.value !== "ALL"
-                      return (
-                        <TableHead key={col.key} className={cn("whitespace-nowrap", col.breakpoint)}>
-                          <Select value={filterConfig.value} onValueChange={filterConfig.onChange}>
-                            <SelectTrigger className="h-7 border-none bg-transparent px-0 text-xs font-medium shadow-none gap-1">
-                              <SelectValue>
-                                {isFiltered ? (
-                                  <span className="flex items-center gap-1.5">
-                                    {filterConfig.label}:
-                                    <Badge variant="outline" className="bg-[#89b4fa]/15 text-[#89b4fa] border-[#89b4fa]/30 text-xs px-1.5 py-0">
-                                      {filterConfig.value}
-                                    </Badge>
-                                  </span>
-                                ) : filterConfig.label}
-                              </SelectValue>
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="ALL">All {filterConfig.label}s</SelectItem>
-                              {filterConfig.options.map((opt) => (
-                                <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableHead>
-                      )
-                    }
                     return (
                       <SortableHead
                         key={col.key}
@@ -517,31 +568,23 @@ export function ZpodsPage() {
                     )
                   })}
                   <SortableHead label="Status" sortKey="status" sort={sort} onToggle={toggleSort} className="whitespace-nowrap w-px text-center" />
-                  <TableHead className="whitespace-nowrap w-px text-right pl-0 pr-2.5">Actions</TableHead>
+                  <TableHead className="whitespace-nowrap w-px text-right !pl-0 !pr-2.5">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sorted.map((zpod) => {
                   const componentGroups = groupComponents(zpod.components ?? [])
                   const totalFromProfile = profileComponentCounts.get(zpod.profile) ?? 0
-                  const done = (zpod.components ?? []).filter(
-                    (c) => c.status === "ACTIVE"
-                  ).length
-                  const showProgress =
-                    zpod.status !== "ACTIVE" &&
-                    zpod.status !== "DELETED" &&
-                    zpod.status !== "DELETING" &&
-                    !zpod.status.endsWith("_FAILED") &&
-                    totalFromProfile > 0
-                  const pct = totalFromProfile > 0
-                    ? Math.round((done / totalFromProfile) * 100)
-                    : 0
+                  const showProgress = zpodShowsProgress(zpod, totalFromProfile)
+                  const pct = zpodBuildPct(zpod, totalFromProfile)
                   const deployedComponents = zpod.components ?? []
                   const profileSteps = profileStepsMap.get(zpod.profile) ?? []
                   const deployedByUid = groupDeployedByUid(deployedComponents)
                   const hoverRows = buildHoverRows(profileSteps)
                   return (
                     <React.Fragment key={zpod.id}>
+                      <HoverCard {...buildCard.root(zpod.id)}>
+                      <HoverCardTrigger asChild {...buildCard.trigger()}>
                       <TableRow className={showProgress ? "border-b-0" : ""}>
                         <TableCell className="whitespace-nowrap">
                           <button
@@ -557,7 +600,7 @@ export function ZpodsPage() {
 
                         {columns.profile && (
                           <TableCell className="hidden lg:table-cell whitespace-nowrap">
-                            <div className="font-medium">{zpod.profile}</div>
+                            <ProfileLink name={zpod.profile} className="font-medium" />
                             {componentGroups.length > 0 && (
                               <div className="ml-4 mt-1 space-y-1 border-l border-muted-foreground/25 pl-2 text-muted-foreground">
                                 {componentGroups.map((line) => (
@@ -573,14 +616,27 @@ export function ZpodsPage() {
 
                         {columns.endpoint && (
                           <TableCell className="hidden 2xl:table-cell whitespace-nowrap">
-                            {zpod.endpoint?.name ?? "—"}
+                            <EndpointLink endpoint={zpod.endpoint} />
                           </TableCell>
                         )}
 
                         {columns.networks && (
                           <TableCell className="hidden xl:table-cell whitespace-nowrap font-mono">
                             {zpod.networks?.length ? (
-                              <NetworkBlock networks={zpod.networks} />
+                              // The card hangs off a box inside the cell: as a child of the row,
+                              // its wrapper would count as a cell and shift the columns
+                              <HoverCard onOpenChange={netCard.onOpenChange}>
+                                <HoverCardTrigger asChild onPointerMove={netCard.onPointerMove}>
+                                  <div data-zpod-networks className="cursor-default">
+                                    <NetworkBlock networks={zpod.networks} />
+                                  </div>
+                                </HoverCardTrigger>
+                                <ZpodDetails
+                                  zpod={zpod}
+                                  t0={zpod.endpoint ? t0ByEndpoint.get(zpod.endpoint.id) : undefined}
+                                  alignOffset={netCard.alignOffset}
+                                />
+                              </HoverCard>
                             ) : (
                               "—"
                             )}
@@ -589,7 +645,7 @@ export function ZpodsPage() {
 
                         {columns.owners && (
                           <TableCell className="hidden 2xl:table-cell whitespace-nowrap">
-                            {getOwners(zpod)}
+                            <OwnerLinks zpod={zpod} />
                           </TableCell>
                         )}
 
@@ -600,25 +656,9 @@ export function ZpodsPage() {
                         )}
 
                         <TableCell className="whitespace-nowrap text-center">
-                          {showProgress ? (
-                            <HoverCard openDelay={200} closeDelay={100}>
-                              <HoverCardTrigger asChild>
-                                <span className="cursor-default">
-                                  <StatusBadge status={zpod.status} />
-                                </span>
-                              </HoverCardTrigger>
-                              <BuildProgressHoverContent
-                                creationDate={zpod.creation_date}
-                                pct={pct}
-                                hoverRows={hoverRows}
-                                deployedByUid={deployedByUid}
-                              />
-                            </HoverCard>
-                          ) : (
-                            <StatusBadge status={zpod.status} />
-                          )}
+                          <StatusBadge status={zpod.status} />
                         </TableCell>
-                        <TableCell className="text-right pl-0 pr-2.5">
+                        <TableCell className="text-right !pl-0 !pr-2.5">
                           <div className="flex items-center gap-1">
                             <IconTooltip label="Copy password">
                               <Button
@@ -655,9 +695,24 @@ export function ZpodsPage() {
                           </div>
                         </TableCell>
                       </TableRow>
+                      </HoverCardTrigger>
+                      {/* Only a building zPod's row opens a card: its progress, under the cursor */}
+                      {showProgress && (
+                        <BuildProgressHoverContent
+                          setupStatus={zpodSetupStatus(zpod)}
+                          creationDate={zpod.creation_date}
+                          pct={pct}
+                          hoverRows={hoverRows}
+                          deployedByUid={deployedByUid}
+                          side="bottom"
+                          align="start"
+                          alignOffset={buildCard.alignOffset}
+                        />
+                      )}
+                      </HoverCard>
                       {showProgress && (
                         <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={visibleCount + 1} className="p-0">
+                          <TableCell colSpan={visibleCount + 1} className="!p-0">
                             <Progress value={pct} className="h-1 w-full rounded-none" />
                           </TableCell>
                         </TableRow>
@@ -670,6 +725,7 @@ export function ZpodsPage() {
           )}
         </CardContent>
       </Card>
+      )}
     </div>
   )
 }

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Link } from "react-router"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
@@ -7,9 +8,9 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
-import { BookOpen, GitBranch, CheckCircle2, XCircle, RefreshCw } from "lucide-react"
+import { BookOpen, GitBranch, CheckCircle2, XCircle, RefreshCw, Package } from "lucide-react"
 import { useAuthStore } from "@/stores/auth-store"
-import type { Library } from "@/types"
+import type { ComponentFull, Library } from "@/types"
 import { formatDateTime } from "@/lib/utils"
 
 function daysAgo(dateStr: string): { label: string; days: number } {
@@ -27,17 +28,66 @@ function ageBadgeClasses(days: number): string {
   return "bg-[#f38ba8]/15 text-[#f38ba8] border-[#f38ba8]/30"
 }
 
+/** A library's component count. After a resync from this page it pops each time it changes, so the
+ *  components the resync adds show as they land; otherwise (opening the page) it stays still */
+function ComponentCount({
+  name,
+  total,
+  active,
+  live,
+}: {
+  name: string
+  total: number
+  active: number
+  live: boolean
+}) {
+  const pop = live ? "duration-500 animate-in zoom-in-150 fade-in" : ""
+  return (
+    <Link
+      to={`/components?library=${encodeURIComponent(name)}`}
+      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-[#89b4fa]"
+      title={`List ${name}'s components on the Components page`}
+    >
+      <Package className="h-3.5 w-3.5" />
+      {/* Keyed by the count: a new number mounts again and plays its entrance */}
+      <span key={total} className={`font-semibold tabular-nums text-foreground ${pop}`}>
+        {total}
+      </span>
+      component{total !== 1 ? "s" : ""}
+      <span className="text-muted-foreground/70">·</span>
+      <span key={`a${active}`} className={`tabular-nums ${live ? "duration-500 animate-in fade-in" : ""}`}>{active}</span> active
+    </Link>
+  )
+}
+
 export function LibrariesPage() {
-  const { fetchLibraries, resyncLibrary } = useApi()
+  const { fetchLibraries, fetchComponents, resyncLibrary } = useApi()
   const { user } = useAuthStore()
   const isSuperadmin = user?.superadmin ?? false
   const [libraries, setLibraries] = useState<Library[]>([])
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState<Set<string>>(new Set())
+  // The libraries resynced from this page since it opened: only their counts pop as they change
+  const [resynced, setResynced] = useState<Set<string>>(new Set())
+  // Each library's components (deleted ones aside, as on the Components page), refreshed with the
+  // libraries so a resync's new components show as they land
+  const [components, setComponents] = useState<ComponentFull[]>([])
+  const counts = useMemo(() => {
+    const byLib = new Map<string, { total: number; active: number }>()
+    for (const c of components) {
+      if (c.status === "DELETED") continue
+      const n = byLib.get(c.library_name) ?? { total: 0, active: 0 }
+      n.total++
+      if (c.status === "ACTIVE") n.active++
+      byLib.set(c.library_name, n)
+    }
+    return byLib
+  }, [components])
   const { sorted } = useSort(libraries, "name")
 
   const handleResync = async (lib: Library) => {
     setSyncing((prev) => new Set(prev).add(lib.name))
+    setResynced((prev) => new Set(prev).add(lib.name))
     try {
       await resyncLibrary(String(lib.id))
       toast.success(`Resync started for "${lib.name}"`)
@@ -55,14 +105,16 @@ export function LibrariesPage() {
 
   const loadLibraries = useCallback(() => {
     fetchLibraries().then(setLibraries).catch(() => {})
-  }, [fetchLibraries])
+    fetchComponents().then(setComponents).catch(() => {})
+  }, [fetchLibraries, fetchComponents])
 
   useEffect(() => {
     fetchLibraries()
       .then(setLibraries)
       .catch(() => toast.error("Failed to fetch libraries"))
       .finally(() => setLoading(false))
-  }, [fetchLibraries])
+    fetchComponents().then(setComponents).catch(() => {})
+  }, [fetchLibraries, fetchComponents])
 
   usePolling(loadLibraries)
 
@@ -120,6 +172,12 @@ export function LibrariesPage() {
                 <p className="text-sm text-muted-foreground">
                   {lib.description}
                 </p>
+                <ComponentCount
+                  name={lib.name}
+                  total={counts.get(lib.name)?.total ?? 0}
+                  active={counts.get(lib.name)?.active ?? 0}
+                  live={resynced.has(lib.name)}
+                />
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <GitBranch className="h-3 w-3" />
                   <a

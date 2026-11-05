@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
 import { toast } from "sonner"
 import {
@@ -40,6 +40,7 @@ import { ZpodNetworkAddDialog } from "@/components/zpod-network-add-dialog"
 import { ZpodNetworkRoutingDialog, type RoutingRun } from "@/components/zpod-network-routing-dialog"
 import { ZpodNetworksTopology } from "@/components/zpod-networks-topology"
 import { useApi } from "@/hooks/use-api"
+import { FLASH_FRAME, FLASH_ROW, useFlashFocus } from "@/hooks/use-flash-focus"
 import { usePreferencesStore, type NetworkGroupsOpen } from "@/stores/preferences-store"
 import { cn } from "@/lib/utils"
 import {
@@ -167,6 +168,24 @@ export function ZpodNetworksCard({
     [networks]
   )
   const mgmt = managementNetwork(networks)
+
+  // ?network=<cidr>, from a network on the zPods page: the table view, the groups holding it open,
+  // and every zPod or user network inside that CIDR outlined for a few seconds. zcore's own rows
+  // share those CIDRs, so they are left out. The zPod's /24 covers its whole zPod Networks group,
+  // which is then framed as one block, header included, rather than row by row.
+  const flashNetwork = useFlashFocus("network", networks.length > 0)
+  const flashed = useMemo(
+    () => (flashNetwork ? networks.filter((n) => n.kind !== "zcore" && cidrsOverlap(n.cidr, flashNetwork)) : []),
+    [flashNetwork, networks]
+  )
+  const zpodRows = networks.filter((n) => n.kind === "zpod")
+  const flashZpodGroup =
+    flashed.length > 1 && flashed.length === zpodRows.length && flashed.every((n) => n.kind === "zpod")
+  useEffect(() => {
+    if (!flashed.length) return
+    setNetworksView("table")
+    for (const kind of new Set(flashed.map((n) => n.kind))) setNetworkGroupOpen(kind, true)
+  }, [flashed, setNetworksView, setNetworkGroupOpen])
   const zcoreIp = mgmt ? cidrToZcoreIp(mgmt.cidr) : ""
 
   const onChanged = useCallback(() => load(), [load])
@@ -380,8 +399,16 @@ export function ZpodNetworksCard({
               <TableBody>
                 {grouped.map((g) => {
                   const open = networkGroupsOpen[g.kind]
+                  const framed = flashZpodGroup && g.kind === "zpod"
                   return [
-                    <TableRow key={`grp-${g.kind}`} className="bg-muted/30 hover:bg-muted/50">
+                    <TableRow
+                      key={`grp-${g.kind}`}
+                      id={framed ? `network-${flashNetwork}` : undefined}
+                      className={cn(
+                        "bg-muted/30 transition-[background-color,box-shadow] duration-500 hover:bg-muted/50",
+                        framed && FLASH_FRAME.top
+                      )}
+                    >
                       <TableCell colSpan={8} className="!p-0">
                         <button
                           type="button"
@@ -403,7 +430,7 @@ export function ZpodNetworksCard({
                       </TableCell>
                     </TableRow>,
                     ...(open
-                      ? g.rows.map((n) => (
+                      ? g.rows.map((n, i) => (
                           <NetworkRow
                             key={`${g.kind}-${n.name}`}
                             n={n}
@@ -421,6 +448,13 @@ export function ZpodNetworksCard({
                             }
                             onRemove={setRemoveTarget}
                             onShowInTopology={showInTopology}
+                            flash={
+                              framed
+                                ? i === g.rows.length - 1 ? FLASH_FRAME.bottom : FLASH_FRAME.middle
+                                : flashed.includes(n) ? FLASH_ROW : undefined
+                            }
+                            // the scroll target: the first outlined row (the group header when framed)
+                            anchorId={!framed && flashed[0] === n ? `network-${flashNetwork}` : undefined}
                           />
                         ))
                       : []),
@@ -494,8 +528,13 @@ function NetworkRow({
   onShowRun,
   onRemove,
   onShowInTopology,
+  flash,
+  anchorId,
 }: {
   n: ZpodNetworkView
+  /** The outline it gets for a few seconds after a deep link (FLASH_ROW, or a FLASH_FRAME edge) */
+  flash?: string
+  anchorId?: string
   busy: boolean
   isMaintainer: boolean
   isSuperadmin: boolean
@@ -536,7 +575,10 @@ function NetworkRow({
   )
 
   return (
-    <TableRow className={cn(system && "text-muted-foreground")}>
+    <TableRow
+      id={anchorId}
+      className={cn("transition-[background-color,box-shadow] duration-500", system && "text-muted-foreground", flash)}
+    >
       <TableCell className="min-w-[7.5rem] max-w-[16rem] font-mono [overflow-wrap:anywhere]">{n.name}</TableCell>
       <TableCell className="whitespace-nowrap font-mono">
         {n.vlan_id === 0 ? <span className="font-sans text-xs text-muted-foreground">untagged</span> : n.vlan_id}

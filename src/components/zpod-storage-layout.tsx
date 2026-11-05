@@ -86,7 +86,7 @@ function DiskColumn({
       {disk.status === "PENDING" && <Block dashed>A disk run is in progress.</Block>}
 
       {storage && (
-        <HoverCard openDelay={250} closeDelay={100}>
+        <HoverCard>
           {/* The box names the layout only; hovering it shows the whole disk-to-mount chain */}
           <HoverCardTrigger asChild>
             <div tabIndex={0} className="cursor-default rounded border border-border/80 p-2 transition-colors hover:border-border">
