@@ -324,7 +324,7 @@ export function ZpodCreateDialog({
                   {profiles.map((p) => {
                     const count = flattenProfileItems(p.profile).length
                     return (
-                      <HoverCard key={p.id} openDelay={300} closeDelay={100}>
+                      <HoverCard key={p.id}>
                         <HoverCardTrigger asChild>
                           <SelectItem value={p.name}>
                             {p.name} ({count} component
@@ -381,7 +381,7 @@ export function ZpodCreateDialog({
                   </SelectTrigger>
                   <SelectContent>
                     {activeEndpoints.map((ep) => (
-                      <HoverCard key={ep.id} openDelay={300} closeDelay={100}>
+                      <HoverCard key={ep.id}>
                         <HoverCardTrigger asChild>
                           <SelectItem value={String(ep.id)}>
                             {ep.name}

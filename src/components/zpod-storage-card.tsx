@@ -41,6 +41,7 @@ import { ZpodStorageFolderDialog, ZpodStorageFolderRemoveDialog } from "@/compon
 import { StorageLayoutBadge, ZpodStorageLayout } from "@/components/zpod-storage-layout"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
+import { FLASH_ROW, useFlashFocus } from "@/hooks/use-flash-focus"
 import { usePreferencesStore, type StorageView } from "@/stores/preferences-store"
 import { apiErrorMessage, cidrsOverlap } from "@/lib/network-utils"
 import {
@@ -104,6 +105,14 @@ export function ZpodStorageCard({
   // A view saved before the Disks and NFS tabs were folded into Storages falls back to it
   const tab: StorageView = storageView === "layout" ? "layout" : "storages"
   const [data, setData] = useState<StorageData | null>(null)
+  // ?storage=<name>, from a storage on the zPods page's hover card: show it in the Storages view,
+  // unfolded, scrolled to and outlined for a few seconds
+  const flashStorage = useFlashFocus("storage", data !== null)
+  useEffect(() => {
+    if (!flashStorage) return
+    setTab("storages")
+    setStorageFolded(flashStorage, false)
+  }, [flashStorage, setTab, setStorageFolded])
   const [unsupported, setUnsupported] = useState<string | null>(null)
   const [failed, setFailed] = useState<string | null>(null)
   const stopped = useRef(false)
@@ -304,6 +313,7 @@ export function ZpodStorageCard({
                         key={s.name}
                         s={s}
                         open={open}
+                        flash={s.name === flashStorage}
                         isMaintainer={isMaintainer}
                         onToggle={() => setStorageFolded(s.name, open)}
                         onGrow={() => {
@@ -487,7 +497,7 @@ function UsageCell({ s }: { s: ZpodStorageView }) {
     </div>
   )
   return (
-    <HoverCard openDelay={200} closeDelay={100}>
+    <HoverCard>
       {/* The whole bar and its percentage open the card, not just the number */}
       <HoverCardTrigger asChild>
         <div tabIndex={0} className="flex min-w-[8rem] cursor-default items-center gap-2 py-1">
@@ -521,9 +531,12 @@ function StorageRow({
   growDisabled,
   onAddFolder,
   onDelete,
+  flash,
 }: {
   s: ZpodStorageView
   open: boolean
+  /** Outlined for a few seconds after a deep link */
+  flash?: boolean
   isMaintainer: boolean
   onToggle: () => void
   onGrow: () => void
@@ -534,7 +547,14 @@ function StorageRow({
   const exported = s.folders.filter((f) => f.exported).length
   const zcoreFiler = s.kind === "zcore" || s.protected
   return (
-    <TableRow className={cn("bg-muted/30 hover:bg-muted/50", open && s.folders.length > 0 && "border-b-0")}>
+    <TableRow
+      id={`storage-${s.name}`}
+      className={cn(
+        "bg-muted/30 transition-[background-color,box-shadow] duration-500 hover:bg-muted/50",
+        open && s.folders.length > 0 && "border-b-0",
+        flash && FLASH_ROW
+      )}
+    >
       <TableCell className="whitespace-nowrap">
         <div className="flex items-center gap-1.5">
           <button
@@ -952,7 +972,7 @@ function MountsBadge({
     /^\d{1,3}(\.\d{1,3}){3}$/.test(ip) ? networks.find((net) => cidrsOverlap(`${ip}/32`, net.cidr))?.name : undefined
   const access = exp ? parseNfsOptions(exp.options) : null
   return (
-    <HoverCard openDelay={150} closeDelay={100}>
+    <HoverCard>
       <HoverCardTrigger asChild>
         <span
           tabIndex={0}

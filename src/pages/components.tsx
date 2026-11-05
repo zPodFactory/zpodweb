@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Link } from "react-router"
+import { Link, useSearchParams } from "react-router"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { cn } from "@/lib/utils"
 import {
   Table,
   TableBody,
@@ -71,15 +73,21 @@ function DownloadStatusBadge({ downloadStatus }: { downloadStatus: string }) {
     VERIFYING_CHECKSUM: "Verifying Checksum",
     DOWNLOAD_COMPLETED: "Download Completed",
   }
-  const label = labelMap[downloadStatus] ?? downloadStatus
+  // A failure stays short, so the column stays narrow: its reason (FAILED_NOT_ENTITLED → "not
+  // entitled") is on hover
+  const failed = downloadStatus.startsWith("FAILED_")
+  const label = failed ? "Failed" : (labelMap[downloadStatus] ?? downloadStatus)
+  const reason = failed ? `Download failed: ${downloadStatus.slice(7).replace(/_/g, " ").toLowerCase()}` : undefined
   const isProgress = downloadStatus === "SCHEDULED" || downloadStatus === "VERIFYING_CHECKSUM"
-  const colorClass = downloadStatus === "DOWNLOAD_COMPLETED"
+  const colorClass = downloadStatus.startsWith("FAILED_")
+    ? statusClasses(downloadStatus)
+    : downloadStatus === "DOWNLOAD_COMPLETED"
     ? statusClasses("ACTIVE")
     : downloadStatus === "SCHEDULED"
       ? statusClasses("PENDING")
       : statusClasses("DOWNLOADING")
   return (
-    <Badge variant="outline" className={`gap-1 ${colorClass}`}>
+    <Badge variant="outline" className={`gap-1 ${colorClass}`} title={reason}>
       {isProgress && <Loader2 className="h-3 w-3 animate-spin" />}
       {label}
     </Badge>
@@ -94,7 +102,13 @@ export function ComponentsPage() {
   const [profiles, setProfiles] = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
-  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "IN_PROGRESS">("ACTIVE")
+  // ?library= (from the Libraries page) opens on that library's components, all of them
+  const [searchParams] = useSearchParams()
+  const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "IN_PROGRESS">(() =>
+    searchParams.get("library") ? "ALL" : "ACTIVE"
+  )
+  // A library's name, or ALL: the same kind of filter as the zPods page's profile one
+  const [libraryFilter, setLibraryFilter] = useState(() => searchParams.get("library") ?? "ALL")
   const [showUpload, setShowUpload] = useState(false)
   const [toggling, setToggling] = useState<Set<number>>(new Set())
   const [confirmTarget, setConfirmTarget] = useState<ComponentFull | null>(null)
@@ -135,7 +149,9 @@ export function ComponentsPage() {
     return map
   }, [profiles])
 
-  const filtered = components.filter((c) => {
+  // A deleted component is gone from its library: never listed, counted or offered as a filter
+  const visible = components.filter((c) => c.status !== "DELETED")
+  const filtered = visible.filter((c) => {
     const matchesText =
       c.component_name.toLowerCase().includes(filter.toLowerCase()) ||
       c.component_uid.toLowerCase().includes(filter.toLowerCase()) ||
@@ -144,8 +160,10 @@ export function ComponentsPage() {
       statusFilter === "ALL" ||
       (statusFilter === "ACTIVE" && c.status === "ACTIVE") ||
       (statusFilter === "IN_PROGRESS" && !!c.download_status && (c.download_status === "SCHEDULED" || c.download_status === "VERIFYING_CHECKSUM" || !isNaN(Number(c.download_status))))
-    return matchesText && matchesStatus
+    const matchesLibrary = libraryFilter === "ALL" || c.library_name === libraryFilter
+    return matchesText && matchesStatus && matchesLibrary
   })
+  const libraries = [...new Set(visible.map((c) => c.library_name).filter(Boolean))].sort((a, b) => a.localeCompare(b))
 
   const { sorted, sort, toggleSort } = useSort(filtered, "component_uid")
 
@@ -188,7 +206,7 @@ export function ComponentsPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">Components</h1>
-          <Badge variant="outline">{sorted.length} / {components.length}</Badge>
+          <Badge variant="outline">{sorted.length} / {visible.length}</Badge>
         </div>
         {isSuperadmin && (
           <Button size="sm" onClick={() => setShowUpload(true)}>
@@ -221,6 +239,25 @@ export function ComponentsPage() {
             </Button>
           ))}
         </div>
+        {/* Offered once there is a choice, highlighted while it narrows the list, as on the zPods page */}
+        {/* Also while it is set, so a library with nothing left listed (opened from the Libraries
+            page) can still be cleared */}
+        {(libraries.length > 1 || libraryFilter !== "ALL") && (
+          <Select value={libraryFilter} onValueChange={setLibraryFilter}>
+            <SelectTrigger
+              className={cn("h-8 w-auto gap-1.5 text-xs", libraryFilter !== "ALL" && "border-[#89b4fa]/50 bg-[#89b4fa]/10")}
+              aria-label="Library"
+            >
+              <SelectValue>{libraryFilter === "ALL" ? "All libraries" : `Library: ${libraryFilter}`}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All libraries</SelectItem>
+              {(libraries.includes(libraryFilter) || libraryFilter === "ALL" ? libraries : [...libraries, libraryFilter]).map((name) => (
+                <SelectItem key={name} value={name}>{name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <Card>
@@ -230,14 +267,19 @@ export function ComponentsPage() {
               No components found
             </p>
           ) : (
-            <Table>
+            <Table
+              // Tighter cells than the default (px-3, not p-4 all round): every column fits a
+              // smaller window before the description has to give way entirely
+              className="[&_td]:px-3 [&_th]:px-3"
+            >
               <TableHeader>
                 <TableRow>
                   <SortableHead label="UID" sortKey="component_uid" sort={sort} onToggle={toggleSort} />
                   <SortableHead label="Name" sortKey="component_name" sort={sort} onToggle={toggleSort} />
                   <SortableHead label="Version" sortKey="component_version" sort={sort} onToggle={toggleSort} />
                   <SortableHead label="Library" sortKey="library_name" sort={sort} onToggle={toggleSort} className="hidden md:table-cell" />
-                  <SortableHead label="Description" sortKey="component_description" sort={sort} onToggle={toggleSort} className="hidden lg:table-cell" />
+                  {/* The one column that gives way: it takes what the others leave, down to nothing */}
+                  <SortableHead label="Description" sortKey="component_description" sort={sort} onToggle={toggleSort} className="w-full max-w-0 overflow-hidden" />
                   <SortableHead label="Status" sortKey="status" sort={sort} onToggle={toggleSort} />
                   {isSuperadmin && <TableHead className="w-[80px]">Profiles</TableHead>}
                   {isSuperadmin && <TableHead className="w-[80px]">Actions</TableHead>}
@@ -257,7 +299,7 @@ export function ComponentsPage() {
                     <TableCell className="font-mono whitespace-nowrap">
                       {comp.component_uid}
                     </TableCell>
-                    <TableCell className="font-medium whitespace-nowrap">
+                    <TableCell className="whitespace-nowrap font-medium">
                       {comp.component_name}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
@@ -266,12 +308,30 @@ export function ComponentsPage() {
                     <TableCell className="hidden md:table-cell">
                       {comp.library_name}
                     </TableCell>
-                    <TableCell className="hidden lg:table-cell text-muted-foreground max-w-[300px] truncate">
-                      {comp.component_description}
+                    {/* w-full max-w-0: takes the width the other columns leave, so the table fits its
+                        card instead of scrolling sideways; the text is capped and truncated, in full
+                        on hover */}
+                    <TableCell className="w-full max-w-0 text-muted-foreground">
+                      {comp.component_description && (
+                        <HoverCard>
+                          <HoverCardTrigger asChild>
+                            <div className="max-w-[32rem] cursor-default truncate">{comp.component_description}</div>
+                          </HoverCardTrigger>
+                          <HoverCardContent
+                            side="top"
+                            align="start"
+                            className="w-auto max-w-md border-[#313244] bg-[#181825] px-3 py-2 text-sm"
+                          >
+                            {comp.component_description}
+                          </HoverCardContent>
+                        </HoverCard>
+                      )}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      {comp.status !== "ACTIVE" && comp.download_status ? (
-                        <DownloadStatusBadge downloadStatus={comp.download_status} />
+                      {/* ACTIVE or INACTIVE, unless a download is under way (its progress) or failed
+                          (why it is not active); NOT_STARTED and COMPLETED say nothing more */}
+                      {comp.status !== "ACTIVE" && ds && (isTransitioning || ds === "DOWNLOAD_COMPLETED" || ds.startsWith("FAILED_")) ? (
+                        <DownloadStatusBadge downloadStatus={ds} />
                       ) : (
                         <StatusBadge status={comp.status} />
                       )}
@@ -287,7 +347,7 @@ export function ComponentsPage() {
                           )
                         }
                         return (
-                          <HoverCard openDelay={200} closeDelay={100}>
+                          <HoverCard>
                             <HoverCardTrigger asChild>
                               <Badge variant="outline" className="cursor-default border-[#94e2d5]/40 bg-[#94e2d5]/10 text-[#94e2d5]">
                                 {names.length}
@@ -327,7 +387,7 @@ export function ComponentsPage() {
                     </TableCell>}
                     {isSuperadmin && (
                       <TableCell>
-                        <HoverCard openDelay={300} closeDelay={100}>
+                        <HoverCard>
                           <HoverCardTrigger asChild>
                             <span className="cursor-default">
                               <Switch

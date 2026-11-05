@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
-import { useSearchParams } from "react-router"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
+import { FLASH_CARD, useFlashFocus } from "@/hooks/use-flash-focus"
 import { useAuthStore } from "@/stores/auth-store"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -48,10 +48,6 @@ export function GroupsPage() {
   const isSuperadmin = useAuthStore((s) => s.user?.superadmin ?? false)
 
   const [groups, setGroups] = useState<PermissionGroup[]>([])
-  // ?group=<id>, from a group badge on the Users page: scroll to that group and flash it
-  const [searchParams, setSearchParams] = useSearchParams()
-  const focusGroup = searchParams.get("group")
-  const [flashGroup, setFlashGroup] = useState<string | null>(null)
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const { sorted } = useSort(groups, "name")
@@ -174,25 +170,8 @@ export function GroupsPage() {
         .map((u) => ({ id: u.id, label: `${u.username} (${u.email})` }))
     : []
 
-  useEffect(() => {
-    if (loading || !focusGroup) return
-    document.getElementById(`group-${focusGroup}`)?.scrollIntoView({ behavior: "smooth", block: "center" })
-    setFlashGroup(focusGroup)
-    // Drop the param so a reload or the polling refresh doesn't flash it again
-    setSearchParams({}, { replace: true })
-  }, [loading, focusGroup, setSearchParams])
-
-  // The outline fades after a few seconds, or at the first click anywhere
-  useEffect(() => {
-    if (!flashGroup) return
-    const clear = () => setFlashGroup(null)
-    const timer = setTimeout(clear, 3000)
-    document.addEventListener("pointerdown", clear)
-    return () => {
-      clearTimeout(timer)
-      document.removeEventListener("pointerdown", clear)
-    }
-  }, [flashGroup])
+  // ?group=<id>, from a group badge on the Users page: scroll to that group and flash it
+  const flashGroup = useFlashFocus("group", !loading)
 
   if (loading) {
     return (
@@ -230,7 +209,7 @@ export function GroupsPage() {
             <Card
               key={group.id}
               id={`group-${group.id}`}
-              className={cn("transition-shadow duration-500", String(group.id) === flashGroup && "ring-2 ring-[#89b4fa]/70")}
+              className={cn("transition-shadow duration-500", String(group.id) === flashGroup && FLASH_CARD)}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">

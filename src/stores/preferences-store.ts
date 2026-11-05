@@ -4,10 +4,15 @@ import { persist } from "zustand/middleware"
 export type NetworksView = "table" | "topology"
 export type NetworkGroupsOpen = Record<"zpod" | "zcore" | "user", boolean>
 export type StorageView = "storages" | "layout"
+export type ZpodsView = "table" | "list"
 
 interface PreferencesState {
   pollingInterval: number // seconds, 0 = disabled
   setPollingInterval: (seconds: number) => void
+  // zPods page: the view it opens in (Preferences), the table or the list of rich rows; the page's
+  // own Table/List toggle switches for that visit only
+  zpodsView: ZpodsView
+  setZpodsView: (view: ZpodsView) => void
   // zPod detail, Networks card: the last tab used and which kind groups are open
   networksView: NetworksView
   setNetworksView: (view: NetworksView) => void
@@ -25,6 +30,8 @@ export const usePreferencesStore = create<PreferencesState>()(
     (set) => ({
       pollingInterval: 5,
       setPollingInterval: (seconds) => set({ pollingInterval: seconds }),
+      zpodsView: "table",
+      setZpodsView: (view) => set({ zpodsView: view }),
       networksView: "table",
       setNetworksView: (view) => set({ networksView: view }),
       // User networks are the ones acted on; the zPod's and zcore's own start folded.

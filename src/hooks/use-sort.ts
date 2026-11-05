@@ -50,7 +50,7 @@ export function useSort<T>(
     )
   }
 
-  return { sorted, sort, toggleSort }
+  return { sorted, sort, setSort, toggleSort }
 }
 
 function getNestedValue(obj: unknown, path: string): unknown {

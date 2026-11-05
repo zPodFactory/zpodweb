@@ -15,8 +15,9 @@ import { ProfileEditorDialog } from "@/components/profile-editor-dialog"
 import { ProfileImportDialog } from "@/components/profile-import-dialog"
 import { useAuthStore } from "@/stores/auth-store"
 import { ProfileTrunk } from "@/components/profile-trunk"
-import { apiErrorDetail, copyToClipboard } from "@/lib/utils"
+import { apiErrorDetail, cn, copyToClipboard } from "@/lib/utils"
 import { flattenProfileItems } from "@/lib/profile-utils"
+import { FLASH_CARD } from "@/hooks/use-flash-focus"
 import type { ComponentFull, Profile, ProfileItem, ProfileItemCreate } from "@/types"
 
 
@@ -58,6 +59,8 @@ export function ProfilesPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const highlightName = searchParams.get("profile")
   const highlightApplied = useRef(false)
+  // The deep-linked profile, outlined for a few seconds like a focused group or endpoint
+  const [flashProfile, setFlashProfile] = useState<number | null>(null)
 
   const loadProfiles = useCallback(() => {
     fetchProfiles().then(setProfiles).catch(() => {})
@@ -82,6 +85,7 @@ export function ProfilesPage() {
     if (match) {
       setExpanded((prev) => new Set(prev).add(match.id))
       highlightApplied.current = true
+      setFlashProfile(match.id)
       // Clean up the query param
       setSearchParams((prev) => {
         prev.delete("profile")
@@ -93,6 +97,18 @@ export function ProfilesPage() {
       }, 100)
     }
   }, [highlightName, profiles, setSearchParams])
+
+  // The outline fades after a few seconds, or at the first click anywhere
+  useEffect(() => {
+    if (flashProfile === null) return
+    const clear = () => setFlashProfile(null)
+    const timer = setTimeout(clear, 3000)
+    document.addEventListener("pointerdown", clear)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener("pointerdown", clear)
+    }
+  }, [flashProfile])
 
   const handleCreate = () => {
     setEditingProfile(null)
@@ -221,7 +237,12 @@ export function ProfilesPage() {
             const items = flattenProfileItems(profile.profile)
             const isExpanded = expanded.has(profile.id)
             return (
-              <Card key={profile.id} id={`profile-${profile.id}`}>
+              <Card
+                key={profile.id}
+                id={`profile-${profile.id}`}
+                // scroll-mt: the deep-link scroll stops below the sticky header, outline visible
+                className={cn("scroll-mt-20 transition-shadow duration-500", profile.id === flashProfile && FLASH_CARD)}
+              >
                 <CardHeader
                   className="cursor-pointer py-3"
                   onClick={() =>

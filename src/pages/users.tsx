@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
+import { FLASH_ROW, useFlashFocus } from "@/hooks/use-flash-focus"
 import { useAuthStore } from "@/stores/auth-store"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -76,6 +77,8 @@ export function UsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [groups, setGroups] = useState<PermissionGroup[]>([])
   const [loading, setLoading] = useState(true)
+  // ?user=<id>, from an owner link on the zPods page: scroll to that user and flash the row
+  const flashUser = useFlashFocus("user", !loading)
   const [showDisabled, setShowDisabled] = useState(false)
   const { sorted, sort, toggleSort } = useSort(users, "username")
 
@@ -281,7 +284,12 @@ export function UsersPage() {
                     // Your own row: a blue edge and a light tint instead of a "You" label
                     <TableRow
                       key={user.id}
-                      className={cn(isSelf && "bg-[#89b4fa]/[0.06] shadow-[inset_3px_0_0_#89b4fa] hover:bg-[#89b4fa]/10")}
+                      id={`user-${user.id}`}
+                      className={cn(
+                        "transition-[background-color,box-shadow] duration-500",
+                        isSelf && "bg-[#89b4fa]/[0.06] shadow-[inset_3px_0_0_#89b4fa] hover:bg-[#89b4fa]/10",
+                        String(user.id) === flashUser && FLASH_ROW
+                      )}
                     >
                       <TableCell>
                         <div className="flex items-center gap-2">

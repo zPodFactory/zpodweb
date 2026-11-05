@@ -13,42 +13,53 @@ export function isInProgressStatus(status: string): boolean {
   return IN_PROGRESS_STATUSES.has(status)
 }
 
-export function statusClasses(status: string): string {
-  // Catch all *_FAILED statuses with red
-  if (status.endsWith("_FAILED") || status === "FAILED_UNKNOWN") {
-    // Red #f38ba8
-    return "bg-[#f38ba8]/15 text-[#f38ba8] border-[#f38ba8]/30"
-  }
+/** The status tones, Catppuccin Mocha. Classes are written out in full so Tailwind finds them. */
+const STATUS_TONES = {
+  red: { hex: "#f38ba8", classes: "bg-[#f38ba8]/15 text-[#f38ba8] border-[#f38ba8]/30" },
+  green: { hex: "#a6e3a1", classes: "bg-[#a6e3a1]/15 text-[#a6e3a1] border-[#a6e3a1]/30" },
+  blue: { hex: "#89b4fa", classes: "bg-[#89b4fa]/15 text-[#89b4fa] border-[#89b4fa]/30" },
+  yellow: { hex: "#f9e2af", classes: "bg-[#f9e2af]/15 text-[#f9e2af] border-[#f9e2af]/30" },
+  peach: { hex: "#fab387", classes: "bg-[#fab387]/15 text-[#fab387] border-[#fab387]/30" },
+  mauve: { hex: "#cba6f7", classes: "bg-[#cba6f7]/15 text-[#cba6f7] border-[#cba6f7]/30" },
+  overlay: { hex: "#7f849c", classes: "bg-[#7f849c]/15 text-[#7f849c] border-[#7f849c]/30" },
+} as const
 
+function statusTone(status: string): keyof typeof STATUS_TONES {
+  // Catch all *_FAILED statuses with red
+  if (status.endsWith("_FAILED") || status === "FAILED_UNKNOWN") return "red"
   switch (status) {
     case "ACTIVE":
     case "COMPLETED":
     case "ENABLED":
-      // Green #a6e3a1
-      return "bg-[#a6e3a1]/15 text-[#a6e3a1] border-[#a6e3a1]/30"
+      return "green"
     case "BUILDING":
     case "CONFIG_SCRIPTS":
     case "POST_SCRIPTS":
     case "DOWNLOADING":
     case "IN_PROGRESS":
-      // Blue #89b4fa
-      return "bg-[#89b4fa]/15 text-[#89b4fa] border-[#89b4fa]/30"
+      return "blue"
     case "PENDING":
-      // Yellow #f9e2af
-      return "bg-[#f9e2af]/15 text-[#f9e2af] border-[#f9e2af]/30"
+      return "yellow"
     case "DELETING":
     case "DELETED":
-      // Peach #fab387
-      return "bg-[#fab387]/15 text-[#fab387] border-[#fab387]/30"
+      return "peach"
     case "TBD":
-      // Violet / Mauve #cba6f7
-      return "bg-[#cba6f7]/15 text-[#cba6f7] border-[#cba6f7]/30"
+      return "mauve"
     case "INACTIVE":
     case "NOT_STARTED":
     default:
-      // Overlay 1 #7f849c
-      return "bg-[#7f849c]/15 text-[#7f849c] border-[#7f849c]/30"
+      return "overlay"
   }
+}
+
+/** Status badge classes */
+export function statusClasses(status: string): string {
+  return STATUS_TONES[statusTone(status)].classes
+}
+
+/** The same status color as a hex, for what a class cannot carry (a row's accent bar, a dot) */
+export function statusHex(status: string): string {
+  return STATUS_TONES[statusTone(status)].hex
 }
 
 /** Live status of a zPod network (read from zboxapi on every list). */

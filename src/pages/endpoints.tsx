@@ -3,6 +3,8 @@ import axios from "axios"
 import { useApi } from "@/hooks/use-api"
 import { usePolling } from "@/hooks/use-polling"
 import { useSort } from "@/hooks/use-sort"
+import { FLASH_CARD, useFlashFocus } from "@/hooks/use-flash-focus"
+import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/stores/auth-store"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -55,6 +57,7 @@ import type {
 import { DetailRow } from "@/components/detail-row"
 import { EndpointCreateDialog } from "@/components/endpoint-create-dialog"
 import { EndpointPermissions } from "@/components/endpoint-permissions"
+import { EndpointNetworks } from "@/components/endpoint-networks"
 
 // --- Helpers ---
 
@@ -482,6 +485,8 @@ export function EndpointsPage() {
   const [allUsers, setAllUsers] = useState<User[]>([])
   const [allGroups, setAllGroups] = useState<PermissionGroup[]>([])
   const [loading, setLoading] = useState(true)
+  // ?endpoint=<id>, from an endpoint link on the zPods page: scroll to it and flash it
+  const flashEndpoint = useFlashFocus("endpoint", !loading)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
   // Edit dialog
@@ -592,7 +597,11 @@ export function EndpointsPage() {
             const hasZpods = epZpods.length > 0
 
             return (
-            <Card key={ep.id}>
+            <Card
+              key={ep.id}
+              id={`endpoint-${ep.id}`}
+              className={cn("transition-shadow duration-500", String(ep.id) === flashEndpoint && FLASH_CARD)}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2 text-base">
@@ -745,6 +754,8 @@ export function EndpointsPage() {
                     />
                   </>
                 )}
+                <Separator className="my-4" />
+                <EndpointNetworks endpoint={ep} zpods={epZpods} />
               </CardContent>
             </Card>
             )
